@@ -1,0 +1,1574 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Image Analyzer - Ultra Deep Search</title>
+<script src="https://js.puter.com/v2/"></script>
+<script src="https://cdn.jsdelivr.net/npm/exifr@7.1.3/dist/lite.umd.js"></script>
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{--bg:#0b0f1a;--surface:#131825;--surface2:#1a2035;--border:#252d44;--text:#e2e8f0;--text-dim:#8892a8;--accent:#6c63ff;--accent-glow:rgba(108,99,255,.25);--green:#34d399;--amber:#fbbf24;--red:#f87171;--blue:#60a5fa;--cyan:#22d3ee;--orange:#fb923c;--purple:#a78bfa;--pink:#f472b6;--gold:#f59e0b;--radius:12px}
+  body{font-family:'Segoe UI',system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--text);min-height:100vh;line-height:1.6}
+
+  header{display:flex;align-items:center;justify-content:space-between;padding:16px 32px;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:50}
+  .logo{display:flex;align-items:center;gap:10px;font-size:1.25rem;font-weight:700}
+  .logo svg{width:32px;height:32px}
+  .api-toggle{display:flex;gap:8px;align-items:center}
+  .api-toggle button{padding:6px 14px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text-dim);cursor:pointer;font-size:.82rem;transition:all .2s}
+  .api-toggle button.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .api-toggle button.active.free{background:var(--green);border-color:var(--green)}
+  .api-toggle button:hover:not(.active){border-color:var(--accent);color:var(--text)}
+
+  .container{max-width:1400px;margin:0 auto;padding:32px}
+
+  .api-bar{display:flex;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 18px;margin-bottom:20px}
+  .api-bar.hidden{display:none}
+  .api-bar label{font-size:.85rem;color:var(--text-dim);white-space:nowrap}
+  .api-bar input{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 14px;color:var(--text);font-size:.9rem;outline:none;transition:border .2s}
+  .api-bar input:focus{border-color:var(--accent)}
+  .api-bar .status-dot{width:10px;height:10px;border-radius:50%;background:var(--red);flex-shrink:0}
+  .api-bar .status-dot.ok{background:var(--green)}
+
+  .free-banner{display:none;gap:10px;align-items:center;background:rgba(52,211,153,.1);border:1px solid var(--green);border-radius:var(--radius);padding:12px 18px;margin-bottom:20px;color:var(--green);font-size:.88rem}
+  .free-banner.visible{display:flex}
+  .offline-banner{display:none;gap:10px;align-items:center;background:rgba(251,191,36,.08);border:1px solid var(--amber);border-radius:var(--radius);padding:12px 18px;margin-bottom:20px;color:var(--amber);font-size:.88rem}
+  .offline-banner.visible{display:flex}
+  .api-toggle button.active.offline{background:var(--amber);border-color:var(--amber);color:#000}
+  .meta-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px;margin-bottom:16px}
+  .meta-card{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:.82rem}
+  .meta-card .mc-label{font-size:.72rem;text-transform:uppercase;letter-spacing:.8px;color:var(--text-dim);margin-bottom:4px}
+  .meta-card .mc-value{color:var(--text);font-weight:600;word-break:break-all}
+  .color-swatch{display:inline-block;width:18px;height:18px;border-radius:4px;border:1px solid var(--border);vertical-align:middle;margin-right:6px}
+  .map-link{color:var(--cyan);text-decoration:underline;cursor:pointer}
+
+  .context-bar{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 18px;margin-bottom:20px}
+  .context-bar label{font-size:.82rem;color:var(--text-dim);display:block;margin-bottom:6px}
+  .context-bar textarea{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:.88rem;font-family:inherit;outline:none;resize:vertical;min-height:42px;max-height:120px;transition:border .2s}
+  .context-bar textarea:focus{border-color:var(--accent)}
+  .context-bar .hint{font-size:.75rem;color:var(--text-dim);margin-top:4px}
+
+  .search-options{display:flex;gap:12px;align-items:center;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 18px;margin-bottom:28px;flex-wrap:wrap}
+  .search-options .label{font-size:.82rem;color:var(--text-dim);margin-right:4px}
+  .depth-btn{padding:5px 14px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--text-dim);cursor:pointer;font-size:.78rem;transition:all .2s;display:flex;align-items:center;gap:5px}
+  .depth-btn:hover{border-color:var(--accent);color:var(--text)}
+  .depth-btn.active{border-color:var(--purple);color:var(--purple);background:rgba(167,139,250,.1)}
+  .depth-btn.active[data-depth="ultra"]{border-color:var(--gold);color:var(--gold);background:rgba(245,158,11,.1);box-shadow:0 0 12px rgba(245,158,11,.2)}
+  .depth-btn svg{width:14px;height:14px}
+  .search-cats{display:flex;gap:6px;flex-wrap:wrap;margin-left:auto}
+  .cat-chip{padding:4px 10px;border-radius:14px;border:1px solid var(--border);font-size:.72rem;color:var(--text-dim);cursor:pointer;transition:all .2s;user-select:none}
+  .cat-chip:hover{border-color:var(--cyan)}
+  .cat-chip.on{border-color:var(--cyan);color:var(--cyan);background:rgba(34,211,238,.08)}
+  .cat-chip.locked{opacity:.7;cursor:default;border-color:var(--gold);color:var(--gold);background:rgba(245,158,11,.08)}
+
+  .ultra-banner{display:none;gap:10px;align-items:center;background:rgba(245,158,11,.08);border:1px solid var(--gold);border-radius:var(--radius);padding:12px 18px;margin-bottom:20px;color:var(--gold);font-size:.84rem}
+  .ultra-banner.visible{display:flex}
+  .ultra-banner svg{width:18px;height:18px;flex-shrink:0}
+
+  .drop-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:56px 32px;text-align:center;cursor:pointer;transition:all .3s;background:var(--surface)}
+  .drop-zone:hover,.drop-zone.drag-over{border-color:var(--accent);background:rgba(108,99,255,.06);box-shadow:0 0 40px var(--accent-glow)}
+  .drop-zone svg{width:56px;height:56px;margin-bottom:16px;color:var(--text-dim)}
+  .drop-zone h3{font-size:1.15rem;margin-bottom:6px}
+  .drop-zone p{color:var(--text-dim);font-size:.88rem}
+  .drop-zone input{display:none}
+
+  .preview-section{display:none;margin-top:28px;grid-template-columns:minmax(0,1fr) minmax(0,1.7fr);gap:28px}
+  .preview-section.visible{display:grid}
+
+  .left-col{display:flex;flex-direction:column;gap:16px}
+  .image-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);overflow:hidden}
+  .image-card img{width:100%;display:block;max-height:420px;object-fit:contain;background:#000}
+  .image-meta{padding:14px 18px;font-size:.82rem;color:var(--text-dim);display:flex;justify-content:space-between;align-items:center}
+  .btn{padding:10px 24px;border-radius:8px;border:none;font-weight:600;font-size:.88rem;cursor:pointer;transition:all .2s}
+  .btn:hover{filter:brightness(1.15);transform:translateY(-1px)}
+  .btn:disabled{opacity:.5;cursor:not-allowed;transform:none}
+  .btn-primary{background:var(--accent);color:#fff}
+  .btn-orange{background:var(--orange);color:#000}
+
+  .results-panel{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;overflow-y:auto;max-height:1200px}
+  .results-panel h2{font-size:1.1rem;margin-bottom:20px;display:flex;align-items:center;gap:8px}
+
+  .spinner-wrap{display:none;flex-direction:column;align-items:center;justify-content:center;padding:48px 0;gap:14px}
+  .spinner-wrap.active{display:flex}
+  .spinner{width:44px;height:44px;border:3px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .spinner-wrap p{color:var(--text-dim);font-size:.88rem;text-align:center}
+  .pass-steps{margin-top:10px;font-size:.78rem;max-height:260px;overflow-y:auto}
+  .pass-step{padding:3px 0;color:var(--text-dim);display:flex;align-items:center;gap:6px}
+  .pass-step.done{color:var(--green)}
+  .pass-step.active{color:var(--accent);font-weight:600}
+
+  .entity-group{margin-bottom:24px}
+  .entity-group-title{font-size:.78rem;text-transform:uppercase;letter-spacing:1.2px;color:var(--text-dim);margin-bottom:12px;padding-bottom:6px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:6px}
+  .entity-card{background:var(--surface2);border:1px solid var(--border);border-radius:10px;padding:16px;margin-bottom:12px;transition:border-color .2s}
+  .entity-card:hover{border-color:var(--accent)}
+  .entity-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px}
+  .entity-name{font-weight:700;font-size:1.05rem}
+  .entity-role{font-size:.82rem;color:var(--cyan);margin-bottom:6px}
+  .entity-tag{font-size:.72rem;padding:3px 10px;border-radius:20px;font-weight:600;letter-spacing:.4px;flex-shrink:0}
+  .tag-person{background:rgba(96,165,250,.15);color:var(--blue)}
+  .tag-place{background:rgba(52,211,153,.15);color:var(--green)}
+
+  .confidence-row{display:flex;align-items:center;gap:10px;margin-bottom:10px}
+  .confidence-bar-bg{flex:1;height:8px;background:var(--border);border-radius:4px;overflow:hidden}
+  .confidence-bar{height:100%;border-radius:4px;transition:width .6s ease}
+  .conf-high{background:var(--green)}.conf-med{background:var(--amber)}.conf-low{background:var(--red)}
+  .confidence-pct{font-size:.82rem;font-weight:700;min-width:44px;text-align:right}
+
+  .entity-bio{font-size:.85rem;color:var(--text-dim);line-height:1.7;margin-bottom:8px}
+  .entity-details{font-size:.8rem;line-height:1.8}
+  .entity-detail{display:flex;gap:8px}
+  .entity-detail-label{color:var(--text-dim);min-width:90px;flex-shrink:0}
+  .entity-detail-value{color:var(--text)}
+  .entity-evidence{margin-top:8px;padding:8px 12px;background:rgba(108,99,255,.08);border-radius:8px;font-size:.78rem;color:var(--text-dim);border-left:2px solid var(--accent)}
+  .entity-evidence strong{color:var(--text)}
+
+  .source-tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:8px}
+  .src-tag{font-size:.68rem;padding:2px 8px;border-radius:10px;font-weight:600;letter-spacing:.3px}
+  .src-social{background:rgba(244,114,182,.12);color:var(--pink)}
+  .src-school{background:rgba(167,139,250,.12);color:var(--purple)}
+  .src-news{background:rgba(251,191,36,.12);color:var(--amber)}
+  .src-professional{background:rgba(96,165,250,.12);color:var(--blue)}
+  .src-sports{background:rgba(52,211,153,.12);color:var(--green)}
+  .src-government{background:rgba(248,113,113,.12);color:var(--red)}
+  .src-entertainment{background:rgba(244,114,182,.12);color:var(--pink)}
+  .src-academic{background:rgba(167,139,250,.12);color:var(--purple)}
+  .src-military{background:rgba(34,211,238,.12);color:var(--cyan)}
+  .src-legal{background:rgba(248,113,113,.12);color:var(--red)}
+  .src-realestate{background:rgba(251,191,36,.12);color:var(--amber)}
+  .src-tech{background:rgba(96,165,250,.12);color:var(--blue)}
+  .src-creative{background:rgba(244,114,182,.12);color:var(--pink)}
+  .src-international{background:rgba(34,211,238,.12);color:var(--cyan)}
+  .src-community{background:rgba(52,211,153,.12);color:var(--green)}
+  .src-genealogy{background:rgba(167,139,250,.12);color:var(--purple)}
+  .src-photo{background:rgba(245,158,11,.12);color:var(--gold)}
+  .src-web{background:rgba(34,211,238,.12);color:var(--cyan)}
+
+  .deep-section{margin-top:10px;padding:10px 12px;background:rgba(167,139,250,.06);border-radius:8px;border-left:2px solid var(--purple);font-size:.8rem}
+  .deep-section .ds-title{font-weight:700;color:var(--purple);font-size:.76rem;text-transform:uppercase;letter-spacing:.6px;margin-bottom:6px;display:flex;align-items:center;gap:5px}
+  .deep-section .ds-item{padding:3px 0;color:var(--text-dim);line-height:1.6}
+  .deep-section .ds-item strong{color:var(--text);font-weight:600}
+
+  .model-badge{display:inline-block;font-size:.64rem;padding:1px 6px;border-radius:8px;background:rgba(108,99,255,.12);color:var(--accent);margin-left:6px;font-weight:600;letter-spacing:.3px;vertical-align:middle}
+
+  .followup-section{margin-top:20px;padding:18px;background:var(--surface);border:1px solid var(--orange);border-radius:var(--radius)}
+  .followup-section h3{font-size:.95rem;color:var(--orange);margin-bottom:4px;display:flex;align-items:center;gap:6px}
+  .followup-section .subtitle{font-size:.8rem;color:var(--text-dim);margin-bottom:14px}
+  .followup-q{margin-bottom:12px}
+  .followup-q label{font-size:.84rem;color:var(--text);display:block;margin-bottom:4px;font-weight:500}
+  .followup-q input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:8px 12px;color:var(--text);font-size:.85rem;outline:none;font-family:inherit}
+  .followup-q input:focus{border-color:var(--orange)}
+  .followup-q .q-hint{font-size:.72rem;color:var(--text-dim);margin-top:2px}
+  .followup-actions{display:flex;gap:10px;margin-top:14px}
+
+  .no-results{text-align:center;padding:40px 0;color:var(--text-dim)}
+  .error-box{display:none;background:rgba(248,113,113,.1);border:1px solid var(--red);border-radius:10px;padding:14px 18px;color:var(--red);font-size:.88rem;margin-bottom:16px}
+  .error-box.visible{display:block}
+
+  @media(max-width:900px){.preview-section.visible{grid-template-columns:1fr}.container{padding:18px}header{padding:14px 18px;flex-wrap:wrap;gap:10px}.search-cats{margin-left:0;margin-top:6px}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">
+    <svg viewBox="0 0 32 32" fill="none"><circle cx="16" cy="16" r="15" stroke="var(--accent)" stroke-width="2"/><path d="M10 20c0-3.3 2.7-6 6-6s6 2.7 6 6" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"/><circle cx="16" cy="11" r="3" stroke="var(--accent)" stroke-width="2"/><path d="M6 26l3-4M26 26l-3-4" stroke="var(--text-dim)" stroke-width="1.5" stroke-linecap="round"/></svg>
+    Image Analyzer
+  </div>
+  <div class="api-toggle">
+    <button class="active free" data-provider="puter">Puter.js (Free)</button>
+    <button data-provider="openai">OpenAI</button>
+    <button data-provider="gemini">Gemini</button>
+    <button data-provider="claude">Claude</button>
+    <button data-provider="noai">No AI (Offline)</button>
+  </div>
+</header>
+
+<div class="container">
+  <div class="free-banner visible" id="freeBanner">No API key needed &mdash; powered by Puter.js with free, unlimited AI access.</div>
+  <div class="offline-banner" id="offlineBanner">No AI Mode &mdash; Extracts EXIF metadata, GPS location, camera info, color palette, and image forensics. No API calls needed. Also used as automatic fallback when AI is unavailable.</div>
+  <div class="api-bar hidden" id="apiBar">
+    <div class="status-dot" id="apiStatus"></div>
+    <label id="apiLabel">OpenAI API Key</label>
+    <input type="password" id="apiKey" placeholder="sk-..." autocomplete="off">
+  </div>
+
+  <div class="context-bar">
+    <label for="userContext">Context Hints (optional)</label>
+    <textarea id="userContext" placeholder="e.g. &quot;This was taken at the 2024 Oscars&quot;, &quot;This person is a tech CEO&quot;, &quot;Photo from a Lakers game&quot;..." rows="1"></textarea>
+    <div class="hint">Any info you provide helps the AI identify people and places more accurately.</div>
+  </div>
+
+  <div class="search-options">
+    <span class="label">Search Depth:</span>
+    <button class="depth-btn" data-depth="quick">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 2L3 14h9l-1 8 10-12h-9l1-8z"/></svg>
+      Quick
+    </button>
+    <button class="depth-btn active" data-depth="deep">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+      Deep Search
+    </button>
+    <button class="depth-btn" data-depth="ultra">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+      Ultra Deep
+    </button>
+    <div class="search-cats" id="searchCats">
+      <span class="cat-chip on" data-cat="social">Social Media</span>
+      <span class="cat-chip on" data-cat="school">Schools/Univ</span>
+      <span class="cat-chip on" data-cat="professional">Professional</span>
+      <span class="cat-chip on" data-cat="news">News/Media</span>
+      <span class="cat-chip on" data-cat="sports">Sports</span>
+      <span class="cat-chip on" data-cat="government">Gov/Public</span>
+      <span class="cat-chip" data-cat="entertainment">Entertainment</span>
+      <span class="cat-chip" data-cat="academic">Academic/Research</span>
+      <span class="cat-chip" data-cat="military">Military/Law Enf</span>
+      <span class="cat-chip" data-cat="legal">Legal/Court</span>
+      <span class="cat-chip" data-cat="realestate">Real Estate/Biz</span>
+      <span class="cat-chip" data-cat="tech">Tech/Developer</span>
+      <span class="cat-chip" data-cat="creative">Creative Arts</span>
+      <span class="cat-chip" data-cat="international">International</span>
+      <span class="cat-chip" data-cat="community">Community/Local</span>
+      <span class="cat-chip" data-cat="genealogy">Genealogy/History</span>
+      <span class="cat-chip" data-cat="photo">Photo/Image</span>
+    </div>
+  </div>
+
+  <div class="ultra-banner" id="ultraBanner">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+    <div><strong>Ultra Deep Mode &mdash; EXHAUSTIVE SEARCH (20 passes)</strong> &mdash; All 3 AI models in parallel. Visual forensics with facial feature matching &amp; image re-verification. Searches 17+ domains: social media, professional/resumes, schools, news, entertainment, sports, government, military, legal, tech, creative arts, international, community, genealogy. Dedicated photo &amp; image hunt across every source (reverse image search, press photos, yearbooks, mugshots, stock photos, event photos, video thumbnails, archived photos, profile pictures). Resume/CV database search and public records/people-finder deep dive. Iterative re-identification loops until every person is found.</div>
+  </div>
+
+  <div class="drop-zone" id="dropZone">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/>
+    </svg>
+    <h3>Drop an image here or click to browse</h3>
+    <p>Supports JPG, PNG, GIF, WEBP &mdash; up to 20 MB</p>
+    <input type="file" id="fileInput" accept="image/*">
+  </div>
+
+  <div class="preview-section" id="previewSection">
+    <div class="left-col">
+      <div class="image-card">
+        <img id="previewImg" src="" alt="Uploaded image">
+        <div class="image-meta">
+          <span id="imageMeta"></span>
+          <button class="btn btn-primary" id="btnAnalyze">Analyze Image</button>
+        </div>
+      </div>
+    </div>
+    <div class="results-panel">
+      <h2>
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2" stroke-linecap="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>
+        Analysis Results
+      </h2>
+      <div class="error-box" id="errorBox"></div>
+      <div class="spinner-wrap" id="spinner">
+        <div class="spinner"></div>
+        <p id="spinnerText">Analyzing image&hellip;</p>
+        <div class="pass-steps" id="passSteps"></div>
+      </div>
+      <div id="resultsContainer">
+        <div class="no-results">Upload and analyze an image to see results.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  let provider='puter', base64Data=null, mimeType=null, rawFile=null;
+  let searchDepth='deep';
+  const ALL_CATS=['social','school','professional','news','sports','government','entertainment','academic','military','legal','realestate','tech','creative','international','community','genealogy','photo'];
+  let enabledCats=new Set(['social','school','professional','news','sports','government']);
+  let lastPass1Data=null, lastIdentified=[], lastResults=null;
+
+  const $=id=>document.getElementById(id);
+  const dropZone=$('dropZone'),fileInput=$('fileInput'),previewSection=$('previewSection'),
+    previewImg=$('previewImg'),imageMeta=$('imageMeta'),btnAnalyze=$('btnAnalyze'),
+    spinner=$('spinner'),resultsContainer=$('resultsContainer'),errorBox=$('errorBox'),
+    apiKey=$('apiKey'),apiStatus=$('apiStatus'),apiLabel=$('apiLabel'),
+    apiBar=$('apiBar'),freeBanner=$('freeBanner'),passSteps=$('passSteps'),
+    userContext=$('userContext'),ultraBanner=$('ultraBanner');
+
+  const placeholders={openai:'sk-...',gemini:'AIza...',claude:'sk-ant-...'};
+  const labels={openai:'OpenAI API Key',gemini:'Gemini API Key',claude:'Claude API Key'};
+  const ALL_MODELS=['claude-sonnet-4-5-20250929','gpt-4o','gemini-2.0-flash'];
+
+  /* Provider switching */
+  const offlineBanner=$('offlineBanner');
+  function switchProvider(p){
+    provider=p;
+    freeBanner.classList.remove('visible');offlineBanner.classList.remove('visible');apiBar.classList.add('hidden');
+    if(p==='puter'){freeBanner.classList.add('visible')}
+    else if(p==='noai'){offlineBanner.classList.add('visible')}
+    else{apiBar.classList.remove('hidden');apiKey.placeholder=placeholders[p];apiLabel.textContent=labels[p];apiKey.value=localStorage.getItem(`analyzer_key_${p}`)||'';updateDot()}
+  }
+  document.querySelectorAll('.api-toggle button').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelector('.api-toggle .active')?.classList.remove('active','free','offline');
+      btn.classList.add('active');
+      if(btn.dataset.provider==='puter')btn.classList.add('free');
+      if(btn.dataset.provider==='noai')btn.classList.add('offline');
+      switchProvider(btn.dataset.provider);
+    });
+  });
+  apiKey.addEventListener('input',()=>{localStorage.setItem(`analyzer_key_${provider}`,apiKey.value.trim());updateDot()});
+  function updateDot(){apiStatus.classList.toggle('ok',apiKey.value.trim().length>8)}
+
+  /* Depth toggle */
+  function setDepth(d){
+    searchDepth=d;
+    ultraBanner.classList.toggle('visible',d==='ultra');
+    const chips=document.querySelectorAll('.cat-chip');
+    if(d==='ultra'){
+      chips.forEach(c=>{c.classList.add('on','locked');enabledCats.add(c.dataset.cat)});
+    } else {
+      chips.forEach(c=>c.classList.remove('locked'));
+    }
+  }
+  document.querySelectorAll('.depth-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      document.querySelector('.depth-btn.active')?.classList.remove('active');
+      btn.classList.add('active');
+      setDepth(btn.dataset.depth);
+    });
+  });
+  document.querySelectorAll('.cat-chip').forEach(chip=>{
+    chip.addEventListener('click',()=>{
+      if(searchDepth==='ultra')return;
+      const cat=chip.dataset.cat;
+      chip.classList.toggle('on');
+      if(chip.classList.contains('on'))enabledCats.add(cat);else enabledCats.delete(cat);
+    });
+  });
+
+  /* Drag & drop */
+  ['dragenter','dragover'].forEach(e=>dropZone.addEventListener(e,ev=>{ev.preventDefault();dropZone.classList.add('drag-over')}));
+  ['dragleave','drop'].forEach(e=>dropZone.addEventListener(e,()=>dropZone.classList.remove('drag-over')));
+  dropZone.addEventListener('click',()=>fileInput.click());
+  dropZone.addEventListener('drop',ev=>{ev.preventDefault();handleFile(ev.dataTransfer.files[0])});
+  fileInput.addEventListener('change',()=>{if(fileInput.files[0])handleFile(fileInput.files[0])});
+
+  function handleFile(file){
+    if(!file||!file.type.startsWith('image/'))return;
+    mimeType=file.type;
+    rawFile=file;
+    const reader=new FileReader();
+    reader.onload=e=>{
+      base64Data=e.target.result.split(',')[1];
+      previewImg.src=e.target.result;
+      imageMeta.textContent=`${file.name} \u00b7 ${(file.size/1024).toFixed(1)} KB`;
+      previewSection.classList.add('visible');
+      resultsContainer.innerHTML='<div class="no-results">Click "Analyze Image" to start.</div>';
+      errorBox.classList.remove('visible');
+      lastPass1Data=null;lastIdentified=[];lastResults=null;
+    };
+    reader.readAsDataURL(file);
+  }
+
+  const simplePrompt=`You are an expert image analyst. Identify all people and locations.
+Reply ONLY with valid JSON:
+{"people":[{"name":"...","confidence":85,"role":"...","info":"...","evidence":"..."}],"locations":[{"name":"...","confidence":90,"info":"..."}],"scene_summary":"..."}
+If none found, use empty arrays.`;
+
+  btnAnalyze.addEventListener('click',analyze);
+
+  async function analyze(){
+    if(!base64Data)return showError('Please upload an image first.');
+    if(provider!=='puter'&&provider!=='noai'&&!apiKey.value.trim())return showError('Please enter your API key.');
+    errorBox.classList.remove('visible');spinner.classList.add('active');
+    passSteps.innerHTML='';$('spinnerText').textContent='Starting analysis\u2026';
+    resultsContainer.innerHTML='';btnAnalyze.disabled=true;
+    try{
+      let data;const key=apiKey.value.trim();
+      if(provider==='noai'){
+        data=await callNoAI();
+      } else if(provider==='puter'){
+        try{
+          if(searchDepth==='ultra') data=await callPuterUltra();
+          else data=await callPuter();
+        }catch(aiErr){
+          /* Auto-fallback to No AI mode if AI fails (e.g. low balance) */
+          console.warn('AI failed, falling back to No AI mode:',aiErr.message);
+          setPass([{label:'AI unavailable — falling back to offline analysis',status:'active'}]);
+          $('spinnerText').textContent='AI unavailable \u2014 running offline analysis\u2026';
+          data=await callNoAI();
+          data._fallback=true;
+        }
+      }
+      else if(provider==='openai')data=await callOpenAI(key);
+      else if(provider==='gemini')data=await callGemini(key);
+      else data=await callClaude(key);
+      lastResults=data;
+      renderResults(data);
+      if(data?._fallback)showError('AI was unavailable (low balance / rate limit). Showing offline metadata analysis as fallback. Switch to a different provider or try again later for AI-powered identification.');
+    }catch(err){showError(err.message||'Analysis failed.')}
+    finally{spinner.classList.remove('active');btnAnalyze.disabled=false}
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     NO AI — Offline Metadata & Forensic Analysis
+     Extracts EXIF, GPS, colors, image forensics — zero API calls
+     ═══════════════════════════════════════════════════════ */
+  async function callNoAI(){
+    const steps=[
+      'Extracting EXIF metadata',
+      'Reading GPS coordinates',
+      'Reverse geocoding location',
+      'Analyzing image properties',
+      'Extracting color palette',
+      'Image forensics analysis',
+      'Compiling findings'
+    ];
+    function upd(i){setPass(steps.map((l,j)=>({label:l,status:j<i?'done':j===i?'active':''})))}
+
+    const meta={};
+    const locations=[];
+    const forensics={};
+
+    /* ── Step 1: EXIF metadata ── */
+    upd(0);$('spinnerText').textContent='Extracting EXIF metadata\u2026';
+    try{
+      if(typeof exifr!=='undefined'&&rawFile){
+        const exif=await exifr.parse(rawFile,{gps:true,xmp:true,icc:true,iptc:true,jfif:true,ihdr:true,tiff:true,exif:true});
+        if(exif){
+          if(exif.Make)meta.camera_make=exif.Make;
+          if(exif.Model)meta.camera_model=exif.Model;
+          if(exif.Software)meta.software=exif.Software;
+          if(exif.DateTimeOriginal)meta.date_taken=new Date(exif.DateTimeOriginal).toLocaleString();
+          else if(exif.CreateDate)meta.date_taken=new Date(exif.CreateDate).toLocaleString();
+          else if(exif.ModifyDate)meta.date_modified=new Date(exif.ModifyDate).toLocaleString();
+          if(exif.ExposureTime)meta.exposure=exif.ExposureTime<1?`1/${Math.round(1/exif.ExposureTime)}s`:`${exif.ExposureTime}s`;
+          if(exif.FNumber)meta.aperture=`f/${exif.FNumber}`;
+          if(exif.ISO)meta.iso=`ISO ${exif.ISO}`;
+          if(exif.FocalLength)meta.focal_length=`${exif.FocalLength}mm`;
+          if(exif.Flash!=null)meta.flash=exif.Flash&1?'Fired':'No flash';
+          if(exif.Orientation)meta.orientation=exif.Orientation;
+          if(exif.ImageWidth)meta.exif_width=exif.ImageWidth;
+          if(exif.ImageHeight||exif.ExifImageHeight)meta.exif_height=exif.ImageHeight||exif.ExifImageHeight;
+          if(exif.Artist)meta.artist=exif.Artist;
+          if(exif.Copyright)meta.copyright=exif.Copyright;
+          if(exif.ImageDescription)meta.description=exif.ImageDescription;
+          if(exif.LensModel)meta.lens=exif.LensModel;
+          if(exif.WhiteBalance!=null)meta.white_balance=exif.WhiteBalance===0?'Auto':'Manual';
+          if(exif.ColorSpace)meta.color_space=exif.ColorSpace===1?'sRGB':`${exif.ColorSpace}`;
+          if(exif.DigitalZoomRatio)meta.digital_zoom=`${exif.DigitalZoomRatio}x`;
+          if(exif.SceneCaptureType!=null){const sct=['Standard','Landscape','Portrait','Night'];meta.scene_type=sct[exif.SceneCaptureType]||`${exif.SceneCaptureType}`}
+          /* IPTC / XMP */
+          if(exif.ObjectName)meta.title=exif.ObjectName;
+          if(exif.Keywords)meta.keywords=Array.isArray(exif.Keywords)?exif.Keywords.join(', '):exif.Keywords;
+          if(exif.City)meta.iptc_city=exif.City;
+          if(exif.Country)meta.iptc_country=exif.Country;
+          if(exif.State||exif.Province)meta.iptc_state=exif.State||exif.Province;
+          if(exif.Headline)meta.headline=exif.Headline;
+          if(exif.Caption||exif['Caption-Abstract'])meta.caption=exif.Caption||exif['Caption-Abstract'];
+          if(exif.Credit)meta.credit=exif.Credit;
+          if(exif.Source)meta.source=exif.Source;
+          if(exif.Writer||exif['Writer-Editor'])meta.writer=exif.Writer||exif['Writer-Editor'];
+
+          /* GPS */
+          meta._lat=exif.latitude;
+          meta._lon=exif.longitude;
+          meta._altitude=exif.GPSAltitude;
+        }
+      }
+    }catch(e){console.warn('EXIF parse error:',e)}
+
+    /* ── Step 2: GPS coordinates ── */
+    upd(1);$('spinnerText').textContent='Reading GPS coordinates\u2026';
+    if(meta._lat!=null&&meta._lon!=null){
+      meta.gps=`${meta._lat.toFixed(6)}, ${meta._lon.toFixed(6)}`;
+      if(meta._altitude!=null)meta.altitude=`${meta._altitude.toFixed(1)}m`;
+    }
+
+    /* ── Step 3: Reverse geocode ── */
+    upd(2);$('spinnerText').textContent='Reverse geocoding location\u2026';
+    if(meta._lat!=null&&meta._lon!=null){
+      try{
+        const geoRes=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${meta._lat}&lon=${meta._lon}&zoom=18&addressdetails=1`,{headers:{'User-Agent':'ImageAnalyzer/1.0'}});
+        if(geoRes.ok){
+          const geo=await geoRes.json();
+          if(geo.display_name){
+            meta.location_name=geo.display_name;
+            const addr=geo.address||{};
+            locations.push({
+              name:geo.display_name,
+              confidence:95,
+              info:`GPS coordinates: ${meta.gps}${addr.road?' | Street: '+addr.road:''}${addr.city||addr.town||addr.village?' | City: '+(addr.city||addr.town||addr.village):''}${addr.state?' | State: '+addr.state:''}${addr.country?' | Country: '+addr.country:''}${addr.postcode?' | ZIP: '+addr.postcode:''}`
+            });
+            meta.city=addr.city||addr.town||addr.village||'';
+            meta.state=addr.state||'';
+            meta.country=addr.country||'';
+            meta.zip=addr.postcode||'';
+          }
+        }
+      }catch(e){console.warn('Geocode error:',e)}
+    }
+
+    /* ── Step 4: Image properties ── */
+    upd(3);$('spinnerText').textContent='Analyzing image properties\u2026';
+    const img=new Image();
+    await new Promise(r=>{img.onload=r;img.src=previewImg.src});
+    meta.width=img.naturalWidth;
+    meta.height=img.naturalHeight;
+    meta.aspect_ratio=`${(img.naturalWidth/img.naturalHeight).toFixed(2)}:1`;
+    meta.megapixels=`${(img.naturalWidth*img.naturalHeight/1e6).toFixed(1)} MP`;
+    meta.file_type=mimeType;
+    meta.file_size=rawFile?`${(rawFile.size/1024).toFixed(1)} KB`:'Unknown';
+    if(rawFile&&rawFile.size>1024*1024)meta.file_size=`${(rawFile.size/(1024*1024)).toFixed(2)} MB`;
+    meta.file_name=rawFile?.name||'Unknown';
+
+    /* Infer photo type from metadata */
+    const inferredType=[];
+    if(meta.camera_make&&meta.camera_model){
+      const cm=(meta.camera_make+' '+meta.camera_model).toLowerCase();
+      if(cm.includes('iphone')||cm.includes('samsung')||cm.includes('pixel')||cm.includes('galaxy'))inferredType.push('Phone photo');
+      else if(cm.includes('canon')||cm.includes('nikon')||cm.includes('sony')||cm.includes('fuji'))inferredType.push('Professional/DSLR camera');
+      else inferredType.push('Camera photo');
+    }
+    if(meta.software){
+      const sw=meta.software.toLowerCase();
+      if(sw.includes('photoshop')||sw.includes('lightroom')||sw.includes('gimp')||sw.includes('affinity'))inferredType.push('Professionally edited');
+      if(sw.includes('snapseed')||sw.includes('vsco')||sw.includes('instagram'))inferredType.push('Mobile-edited');
+      if(sw.includes('screenshot'))inferredType.push('Screenshot');
+    }
+    if(!meta.camera_make&&!meta.date_taken){
+      if(img.naturalWidth===img.naturalHeight)inferredType.push('Possibly cropped/social media avatar');
+      inferredType.push('No camera metadata — may be screenshot, download, or processed');
+    }
+    if(inferredType.length)meta.inferred_type=inferredType.join(' | ');
+
+    /* ── Step 5: Color palette ── */
+    upd(4);$('spinnerText').textContent='Extracting color palette\u2026';
+    const canvas=document.createElement('canvas');
+    const ctx2d=canvas.getContext('2d');
+    const sampleSize=100;
+    canvas.width=sampleSize;canvas.height=sampleSize;
+    ctx2d.drawImage(img,0,0,sampleSize,sampleSize);
+    const pixels=ctx2d.getImageData(0,0,sampleSize,sampleSize).data;
+
+    /* Dominant colors via simple quantization */
+    const colorBuckets={};
+    let totalR=0,totalG=0,totalB=0,totalBrightness=0;
+    const pixelCount=sampleSize*sampleSize;
+    for(let i=0;i<pixels.length;i+=4){
+      const r=pixels[i],g=pixels[i+1],b=pixels[i+2];
+      totalR+=r;totalG+=g;totalB+=b;
+      totalBrightness+=(0.299*r+0.587*g+0.114*b);
+      /* Quantize to 16-level buckets */
+      const qr=Math.round(r/32)*32,qg=Math.round(g/32)*32,qb=Math.round(b/32)*32;
+      const key=`${qr},${qg},${qb}`;
+      colorBuckets[key]=(colorBuckets[key]||0)+1;
+    }
+    const avgBrightness=totalBrightness/pixelCount;
+    meta.avg_brightness=avgBrightness>170?'Bright/High-key':avgBrightness>85?'Medium':'Dark/Low-key';
+    meta.avg_color=`rgb(${Math.round(totalR/pixelCount)},${Math.round(totalG/pixelCount)},${Math.round(totalB/pixelCount)})`;
+
+    const sortedColors=Object.entries(colorBuckets).sort((a,b)=>b[1]-a[1]).slice(0,8);
+    meta._dominant_colors=sortedColors.map(([c,count])=>{
+      const [r,g,b]=c.split(',').map(Number);
+      return{rgb:`rgb(${r},${g},${b})`,hex:`#${((1<<24)+(r<<16)+(g<<8)+b).toString(16).slice(1)}`,pct:((count/pixelCount)*100).toFixed(1)};
+    });
+
+    /* ── Step 6: Image forensics ── */
+    upd(5);$('spinnerText').textContent='Running image forensics\u2026';
+    forensics.has_exif=!!(meta.camera_make||meta.date_taken);
+    forensics.has_gps=!!(meta._lat!=null);
+    forensics.has_editing_software=!!(meta.software);
+    forensics.has_copyright=!!(meta.copyright||meta.artist);
+    forensics.has_iptc=!!(meta.iptc_city||meta.keywords||meta.headline||meta.credit);
+    forensics.resolution_class=img.naturalWidth>=3840?'4K+':img.naturalWidth>=1920?'Full HD':img.naturalWidth>=1280?'HD':img.naturalWidth>=640?'SD':'Low-res';
+    forensics.is_square=Math.abs(img.naturalWidth-img.naturalHeight)<10;
+    forensics.is_portrait=img.naturalHeight>img.naturalWidth;
+    forensics.is_landscape=img.naturalWidth>img.naturalHeight;
+    forensics.is_panoramic=img.naturalWidth/img.naturalHeight>2.5;
+    const dateStr=meta.date_taken||meta.date_modified||'';
+    if(dateStr){
+      const d=new Date(dateStr);
+      if(!isNaN(d)){
+        const h=d.getHours();
+        forensics.time_of_day=h<6?'Night (before dawn)':h<9?'Early morning':h<12?'Morning':h<14?'Midday':h<17?'Afternoon':h<20?'Evening':'Night';
+        forensics.day_of_week=['Sunday','Monday','Tuesday','Wednesday','Thursday','Friday','Saturday'][d.getDay()];
+        forensics.date_formatted=d.toLocaleDateString('en-US',{weekday:'long',year:'numeric',month:'long',day:'numeric'});
+      }
+    }
+
+    /* ── Step 7: Compile ── */
+    upd(6);$('spinnerText').textContent='Compiling findings\u2026';
+
+    /* Build scene summary from metadata */
+    const summaryParts=[];
+    if(meta.inferred_type)summaryParts.push(`Image type: ${meta.inferred_type}.`);
+    if(forensics.date_formatted)summaryParts.push(`Taken on ${forensics.date_formatted}${forensics.time_of_day?' ('+forensics.time_of_day+')':''}.`);
+    if(meta.camera_make&&meta.camera_model)summaryParts.push(`Camera: ${meta.camera_make} ${meta.camera_model}${meta.lens?' with '+meta.lens:''}.`);
+    if(meta.location_name)summaryParts.push(`Location: ${meta.city||''} ${meta.state||''} ${meta.country||''} (from GPS).`);
+    if(meta.software)summaryParts.push(`Edited with: ${meta.software}.`);
+    if(meta.copyright)summaryParts.push(`Copyright: ${meta.copyright}.`);
+    if(meta.artist)summaryParts.push(`Artist/Author: ${meta.artist}.`);
+    if(meta.credit)summaryParts.push(`Credit: ${meta.credit}.`);
+    if(meta.headline)summaryParts.push(`Headline: ${meta.headline}.`);
+    if(meta.caption)summaryParts.push(`Caption: ${meta.caption}.`);
+    summaryParts.push(`Resolution: ${meta.width}x${meta.height} (${meta.megapixels}, ${forensics.resolution_class}).`);
+    summaryParts.push(`Brightness: ${meta.avg_brightness}.`);
+
+    upd(7);
+    return{
+      people:[],
+      locations:locations,
+      scene_summary:summaryParts.join(' '),
+      questions:[],
+      _noai:true,
+      _meta:meta,
+      _forensics:forensics
+    };
+  }
+
+  /* ═══ Puter.js helpers ═══ */
+  function resp(r){return typeof r==='string'?r:r?.message?.content??r?.text??JSON.stringify(r)}
+  function safeParse(text){
+    let s=text.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/i,'');
+    if(/^(I'm sorry|I cannot|I can't|Sorry|Unfortunately|I apologize|As an AI)/i.test(s))return null;
+    const m=s.match(/\{[\s\S]*\}/);
+    if(m){try{return JSON.parse(m[0])}catch(_){}}
+    try{return JSON.parse(s)}catch(_){return null}
+  }
+  async function puterChat(messages,opts){
+    const models=Array.isArray(opts.models)?opts.models:[opts.model||'gpt-4o'];
+    for(const model of models){
+      try{
+        const r=await puter.ai.chat(messages,{...opts,model,models:undefined});
+        const text=resp(r);const data=safeParse(text);
+        if(data)return{data,model,raw:text};
+      }catch(_){}
+    }
+    return null;
+  }
+
+  /* Run ALL models in parallel and collect all results */
+  async function puterChatAll(messages,opts){
+    const results=await Promise.allSettled(
+      ALL_MODELS.map(async model=>{
+        try{
+          const r=await puter.ai.chat(
+            typeof messages==='string'?messages:messages,
+            {...opts,model,models:undefined}
+          );
+          const text=resp(r);const data=safeParse(text);
+          if(data)return{data,model,raw:text};
+        }catch(_){}
+        return null;
+      })
+    );
+    return results.map(r=>r.status==='fulfilled'?r.value:null).filter(Boolean);
+  }
+
+  function setPass(steps){
+    passSteps.innerHTML=steps.map(s=>
+      `<div class="pass-step ${s.status}"><span>${s.status==='done'?'\u2713':s.status==='active'?'\u25B6':'\u2022'}</span> ${s.label}</div>`
+    ).join('');
+  }
+  function getUserContext(){return userContext.value.trim()}
+  function getActiveCats(){return [...enabledCats]}
+
+  function buildSearchInstructions(cats){
+    const I=[];
+    if(cats.includes('social'))I.push('SOCIAL MEDIA — Search EVERY platform exhaustively: Twitter/X (handles, tweets, retweets, likes, lists, followers), Instagram (profile, stories, reels, tagged photos, collabs), Facebook (profile, pages, groups, events, check-ins, marketplace), TikTok (profile, videos, duets, sounds), YouTube (channels, videos, comments, playlists, community posts, about page), Snapchat (usernames, Snap Map, stories), Reddit (u/ profiles, posts, comments, AMAs, moderated subs), Threads, Bluesky, Mastodon/Fediverse, Pinterest (boards, pins), Twitch (channels, VODs, clips, subscribers), Discord (servers, roles), Telegram (channels, groups), WhatsApp (business profiles), WeChat, Weibo, VK, LINE, KakaoTalk, Signal (public groups), BeReal, Lemon8, Clubhouse, LinkedIn posts/articles, Tumblr, Flickr, 500px, DeviantArt, Behance, Dribbble. Find ALL verified accounts, handles, bios, follower counts, engagement rates, viral posts, collaborations, tagged photos, mentioned accounts, linked profiles.');
+    if(cats.includes('school'))I.push('SCHOOLS & UNIVERSITIES — Search exhaustively: University/college directories, faculty/staff pages, student directories, athlete rosters (NCAA, NAIA, NJCAA), yearbook databases (Classmates.com, Ancestry yearbooks), alumni associations & directories, graduation programs, commencement speeches, school newspapers & magazines, .edu websites, dean\'s lists, honor rolls, Phi Beta Kappa & honor societies, fraternity/sorority membership (Greek life), student government, club rosters, class photos, reunion databases, high school records, middle school records, prep school/boarding school directories, trade school & vocational records, community college directories, study abroad programs, exchange student records, scholarship databases, student athlete profiles, campus newspaper bylines, thesis/dissertation databases (ProQuest), student organization leadership.');
+    if(cats.includes('professional'))I.push('PROFESSIONAL & RESUMES — Search exhaustively: LinkedIn (full profiles, recommendations, endorsements, activity, articles, groups, resume/CV section), company websites (team/about pages, leadership bios, press releases, annual reports), corporate bio pages. RESUME DATABASES: Indeed Resumes, Monster profiles, ZipRecruiter profiles, Glassdoor profiles & resumes, CareerBuilder, SimplyHired, Resume-Library, LiveCareer public profiles, Ladders, Hired, AngelList/Wellfound resumes, Dice (tech resumes), Doximity (medical), Hired.com, Jobcase, Resume.com public profiles, Google cached resumes (search "resume" + name + filetype:pdf), personal website /resume or /cv pages, university career services alumni profiles. ALSO: professional associations (ABA, AMA, IEEE, ACM, etc.), conference speaker lists & programs, author pages, business registrations (state Secretary of State filings), patents (USPTO, Google Patents, WIPO), board memberships, startup databases (Crunchbase, AngelList/Wellfound, PitchBook, CB Insights), ZoomInfo, Bloomberg profiles, Forbes profiles, SEC filings (EDGAR — officers & directors), annual reports, trade publications, industry awards, professional licenses (medical, law, engineering, CPA, real estate, nursing, pharmacy, dental), chamber of commerce directories, Better Business Bureau, Dun & Bradstreet, Hoovers, professional certification databases, speaker bureaus, consultant directories, freelancer profiles (Upwork, Fiverr, Toptal, Freelancer.com).');
+    if(cats.includes('news'))I.push('NEWS & MEDIA — Search exhaustively: Major news outlets (NYT, Washington Post, WSJ, CNN, BBC, Reuters, AP, AFP, Guardian, LA Times, Chicago Tribune), local newspapers & TV stations in EVERY US state + international, magazine features (Time, People, Vanity Fair, GQ, Vogue, Forbes, Fortune, Bloomberg, Wired, Rolling Stone), TV appearances (news segments, talk shows, morning shows, late night), podcast appearances (Apple Podcasts, Spotify podcasts, YouTube), interviews (print, video, audio), documentaries, press releases (PR Newswire, BusinessWire, GlobeNewswire), wire services, investigative reports, opinion columns, letters to editor, event coverage, red carpet coverage, paparazzi databases, photo agencies (Getty, AP Images, Shutterstock editorial), newspaper archives (newspapers.com, Google News Archive), radio appearances, news aggregators.');
+    if(cats.includes('sports'))I.push('SPORTS — Search exhaustively: ESPN profiles & stats, Sports-Reference (Baseball-Reference, Basketball-Reference, Pro-Football-Reference, Hockey-Reference), team official websites & rosters, game logs & box scores, draft records (NFL, NBA, MLB, NHL, MLS drafts), player profiles (NFL.com, NBA.com, MLB.com, NHL.com, MLS, ATP, WTA, PGA, LPGA, UFC, FIFA), college athletics (NCAA records, conference sites), minor leagues (MiLB, G-League, AHL, ECHL), high school sports (MaxPreps, Hudl), international competitions (Olympics, World Cup, Commonwealth Games, Asian Games, Pan American Games), amateur & youth leagues, sports hall of fame inductees, All-Star selections, MVP awards, championship records, Transfermarkt (soccer), CricInfo, rugby databases, track & field results, swimming results, gymnastics scores, boxing/MMA records (BoxRec, Sherdog, Tapology), esports profiles (Liquipedia), X Games, extreme sports records, marathon/race results (Athlinks), fantasy sports profiles.');
+    if(cats.includes('government'))I.push('GOVERNMENT & PUBLIC RECORDS — Search exhaustively: Government directories (federal, state, local, municipal), elected official databases, election records & results, FEC campaign finance filings, lobbying disclosures (Senate/House, OpenSecrets), property records & deeds (county assessor, Zillow, Realtor.com ownership), business licenses, voter registration (where public), court records (PACER federal, state court systems, CourtListener), SEC filings, FOIA responses, government contracts (USASpending.gov, FPDS), Congressional Record, C-SPAN transcripts, government meeting minutes, municipal agendas, regulatory filings, professional license lookups, marriage/divorce records (where public), birth/death records (where public), immigration records, naturalization records, bankruptcy filings, tax liens, UCC filings, assumed business names/DBAs, charity registrations (state AG), hunting/fishing licenses, pilot licenses (FAA airmen registry), FCC licenses, liquor licenses.');
+    if(cats.includes('entertainment'))I.push('ENTERTAINMENT — Search exhaustively: IMDb (full filmography, bio, trivia, awards, connections, photos), Rotten Tomatoes, Metacritic, Letterboxd, TMDb, music databases (Spotify artist pages, Apple Music, Discogs, AllMusic, MusicBrainz, Bandcamp, SoundCloud, Last.fm, Genius lyrics credits, ASCAP/BMI songwriter database, Billboard charts), film festivals (Sundance, Cannes, TIFF, Venice, Berlin, SXSW), awards databases (Oscar/Academy, Grammy, Emmy, Tony, Golden Globe, SAG, BAFTA, Pulitzer for arts, Peabody), booking agencies (CAA, WME, UTA, ICM), talent management & PR firms, Playbill (theater credits), Broadway databases, casting databases (Actors Access, Backstage, Casting Networks), voice acting databases (BTVA), stunt performer databases, modeling agencies (Ford, IMG, Elite, Wilhelmina), comedy databases (comedians, standup specials), podcast databases (Podchaser), book databases (Goodreads, Amazon author pages), game voice/motion capture credits, reality TV contestant databases, pageant records, circus/performance arts.');
+    if(cats.includes('academic'))I.push('ACADEMIC & RESEARCH — Search exhaustively: Google Scholar profiles & citations, ResearchGate profiles, ORCID records, Academia.edu, Semantic Scholar, university department pages, PubMed/MEDLINE (biomedical publications), Web of Science, Scopus, IEEE Xplore, ACM Digital Library, JSTOR, arXiv preprints, SSRN (social science papers), bioRxiv/medRxiv, published papers & citations, h-index & i10-index, thesis/dissertation records (ProQuest, institutional repositories), conference proceedings, research grants (NIH Reporter, NSF Award Search), academic awards & prizes (Nobel, Fields Medal, Turing Award, MacArthur Fellowship, Fulbright, Rhodes, Marshall), journal editorial boards, peer review records (Publons), university press author pages, textbook authorship, invited lectures & keynotes, sabbatical records, lab group pages, postdoc records, tenure announcements, emeritus listings, honorary degrees, academic society memberships (NAS, Royal Society, AAAS Fellows).');
+    if(cats.includes('military'))I.push('MILITARY & LAW ENFORCEMENT — Search exhaustively: Military service records, rank history, branch (Army, Navy, Air Force, Marines, Coast Guard, Space Force + foreign militaries), unit assignments, deployment records, medals & decorations (Medal of Honor, Purple Heart, Bronze Star, etc.), military academy records (West Point, Annapolis, Air Force Academy, VMI, The Citadel), ROTC records, National Guard/Reserve records, VA records, veterans organizations (VFW, American Legion, DAV), military reunion sites, Together We Served, police department rosters & press releases, sheriff department records, badge numbers, law enforcement agency pages, FBI/DEA/ATF/Secret Service/US Marshals records, state police/highway patrol, correctional officer records, fire department rosters, 911 dispatcher records, INTERPOL, federal law enforcement training, police union membership, internal affairs records (where public), line-of-duty awards, police memorial databases.');
+    if(cats.includes('legal'))I.push('LEGAL & COURT — Search exhaustively: Federal court records (PACER — all districts, circuit courts, Supreme Court), state court records (every state court system), CourtListener, Google Scholar case law, Justia, FindLaw, bar association directories (ABA, state bars — membership verification), attorney profiles (Martindale-Hubbell, Avvo, Super Lawyers, Best Lawyers), law firm websites (partner/associate bios), court opinions authored, judicial appointment records, bankruptcy court filings, family court records (where public), small claims, traffic court, municipal court, immigration court, tax court, arbitration/mediation records (AAA, JAMS), legal malpractice records, disciplinary actions, patent attorney registrations (USPTO OED), notary public registrations, process server licenses, bail bonds licenses, expert witness databases (SEAK, JurisPro, ExpertPages), legal aid organizations, law school faculty/alumni, moot court & law review membership.');
+    if(cats.includes('realestate'))I.push('REAL ESTATE & BUSINESS — Search exhaustively: Property records (county assessor/recorder, Zillow, Redfin, Realtor.com, Trulia owner info), business incorporations (Secretary of State filings — all 50 states + DC), LLC/Corp filings, registered agent records, DBA/fictitious name filings, commercial property records (CoStar, LoopNet), SEC filings (EDGAR — 10-K, 10-Q, proxy statements, insider trading Form 4), private company databases (Crunchbase, PitchBook, PrivCo), SBA loans (FOIA), PPP loan recipients, franchise disclosure documents (FDD), UCC filings, tax lien records, IRS 990 forms (nonprofit financials — ProPublica Nonprofit Explorer, GuideStar/Candid), trademark registrations (USPTO TESS, WIPO), copyright registrations (US Copyright Office), domain ownership (WHOIS, ICANN), business review sites (BBB, Yelp, Google Business), Amazon seller profiles, eBay seller profiles, Etsy shop owner, stock ownership disclosures.');
+    if(cats.includes('tech'))I.push('TECH & DEVELOPER — Search exhaustively: GitHub (profiles, repos, contributions, stars, followers, organizations, gists), GitLab, Bitbucket, Stack Overflow (profiles, reputation, answers, badges), HackerRank, LeetCode, Codeforces, TopCoder, Kaggle (profiles, competitions, notebooks, datasets), npm/PyPI/RubyGems/crates.io (package author pages), tech blogs (Medium, Dev.to, Hashnode, personal blogs), Hacker News (submissions, comments), Product Hunt (maker profiles, launched products), AngelList/Wellfound (startup profiles), IndieHackers, conference talk videos (YouTube, Vimeo), tech podcast appearances, open source contributor lists, CVE/security advisory credits, bug bounty hall of fame (HackerOne, Bugcrowd), tech Twitter/X presence, Mastodon tech instances, Discord tech servers, Slack communities, personal websites & portfolios, domain registrations, app store developer pages (Apple, Google Play), Chrome/Firefox extension developers, WordPress plugin authors, technical book authorship (O\'Reilly, Manning, Packt), patent filings (tech), academic CS publications, AI/ML model credits (Hugging Face).');
+    if(cats.includes('creative'))I.push('CREATIVE ARTS — Search exhaustively: Art databases (ArtNet, Artsy, Saatchi Art, artforum), gallery representation, museum collection databases (MoMA, MET, Tate, Louvre, Smithsonian), auction records (Christie\'s, Sotheby\'s, Phillips, Heritage Auctions), artist residency programs, art competition winners, photography databases (Getty, 500px, SmugMug, Flickr), design portfolios (Behance, Dribbble, Coroflot), architecture firms (AIA directory), fashion designer databases (CFDA, BFC), fashion week credits, runway model databases (models.com, FMD), craft marketplaces (Etsy, Artfire), music credits (AllMusic, Discogs, session musician databases), dance company rosters, choreographer credits, theater company membership (Actors Equity, SAG-AFTRA), writers\' guild membership (WGA), illustrator databases (Society of Illustrators), graphic novel/comic credits (Grand Comics Database), animation credits (BCDB), video game credits (MobyGames), tattoo artist portfolios, culinary arts (James Beard nominees/winners, Michelin stars, celebrity chef databases), floral design, interior design (ASID directory), industrial design.');
+    if(cats.includes('international'))I.push('INTERNATIONAL — Search exhaustively: Foreign government databases, international organization staff (UN, WHO, World Bank, IMF, NATO, EU, African Union, ASEAN), embassy & consulate staff directories, foreign press (Le Monde, Der Spiegel, El País, Corriere della Sera, Asahi Shimbun, South China Morning Post, Times of India, Al Jazeera, RT, Xinhua), foreign social media (Weibo, WeChat, VK, Odnoklassniki, LINE, KakaoTalk, Naver), foreign business registries, foreign court records, Interpol, foreign police databases, foreign university directories, foreign sports leagues & federations, diplomatic records, treaty signatory lists, international award recipients, foreign honorary titles (knighthoods, orders), foreign property records, foreign charity/NGO registrations, diaspora community organizations, cultural attaché records, foreign language Wikipedia articles, foreign news archives, foreign patent offices (EPO, JPO, CNIPA), foreign trademark registries, international phone directories, foreign alumni networks, international trade association membership, United Nations delegate lists, foreign military records, international competition results, World Economic Forum participants.');
+    if(cats.includes('community'))I.push('COMMUNITY & LOCAL — Search exhaustively: Local newspaper archives, community newsletters, neighborhood association records, PTA/PTO membership, local church/mosque/synagogue/temple directories & bulletins, community theater cast lists, local sports league rosters (little league, rec league, bowling league, pool league, dart league), Rotary/Kiwanis/Lions Club membership, Elks/Moose/Eagles/Masonic lodge membership, local charity event participants & volunteers, 5K/marathon/race results, community garden membership, local business association membership, farmers market vendor lists, city council meeting minutes & attendees, school board meeting records, town hall meeting records, library patron events, local museum volunteer/donor lists, country club/golf club/tennis club membership, homeowners association boards, condo association boards, local political party chapter membership, local union chapter membership, community Facebook groups, Nextdoor profiles, local Patch/Macaroni Kid mentions, community award recipients (citizen of the year, local hero), obituary mentions & survivors, wedding announcements, birth announcements, local blog mentions, Yelp reviewer profiles.');
+    if(cats.includes('photo'))I.push('PHOTO & IMAGE SEARCH — Search EVERY photo source on the entire internet. The goal is to find ANY AND ALL photos of this person anywhere online. REVERSE IMAGE SEARCH ENGINES: Google Images (reverse search, visually similar, pages that include this image), Google Lens, TinEye (exact & modified matches, oldest found, most changed), Yandex Images (reverse image search — often best for faces), Bing Visual Search, Baidu Image Search, PimEyes (facial recognition search engine — searches faces across the web), FaceCheck.ID (face recognition search), Social Catfish (reverse image people search), Lenso.ai (AI-powered reverse image search). PROFILE PICTURES: Search for matching profile photos across ALL social media (Twitter/X, Instagram, Facebook, LinkedIn, TikTok, YouTube, Reddit, Pinterest, Tumblr, Flickr, Snapchat, WhatsApp, Telegram, Signal, Discord, Twitch, Threads, Bluesky, Mastodon, VK, Weibo, WeChat, KakaoTalk, LINE, Badoo, OkCupid, Match.com, Bumble, Tinder, Hinge, Coffee Meets Bagel, Zoosk), messaging app avatars, forum avatars (phpBB, vBulletin, XenForo, Discourse), gaming avatars (Steam, Xbox, PSN, Epic, Riot, Battle.net), email gravatars (Gravatar.com). PRESS & NEWS PHOTOS: Getty Images, AP Images, Reuters Pictures, AFP/Getty, Shutterstock Editorial, Alamy, Newscom, ZUMA Press, Sipa USA, NurPhoto, Pacific Press, Polaris Images, Splash News, MEGA Agency, BackGrid, GC Images, WireImage, FilmMagic, PhotoShelter, newspaper/magazine photo archives, TV screenshots/stills, documentary stills, press conference photos, red carpet photos, paparazzi photos, event photography. STOCK PHOTO SITES: Shutterstock, iStock/Getty Images, Adobe Stock, Dreamstime, Depositphotos, 123RF, Alamy, Pond5, Stocksy, EyeEm, Twenty20, BigStockPhoto, Fotolia/Adobe Stock, Canva stock library, Pixabay, Unsplash, Pexels (check if person is a stock photo model). PROFESSIONAL HEADSHOTS: Company website team/about pages, LinkedIn profile photos, corporate directories, speaker headshots from conference websites, author photos from book jackets/Amazon/publisher sites, podcast guest photos, webinar/course instructor photos, consulting firm bios, law firm partner photos, medical practice doctor photos, real estate agent photos (Zillow, Realtor.com, Redfin agent pages), financial advisor photos (FINRA BrokerCheck), insurance agent photos, academic faculty photos (university department pages), government official portraits (official .gov sites), military official portraits, political campaign photos, clergy/pastor photos (church websites). YEARBOOK & SCHOOL PHOTOS: Classmates.com yearbook archives, Ancestry.com yearbook collection, MyHeritage yearbook photos, high school yearbook databases, college/university yearbook archives, class photos, graduation photos, prom photos, school newspaper photos, student athlete photos, Greek life (fraternity/sorority) composites, school club photos, academic award ceremony photos, student government photos. MUGSHOT & BOOKING DATABASES: Mugshots.com, BustedNewspaper, JailBase, Arrests.org, local sheriff office booking photo databases, state DOC inmate photo databases, federal BOP inmate photos, sex offender registry photos (NSOPW, state registries), most wanted posters (FBI, US Marshals, state police), INTERPOL Red Notices (with photos), court exhibit photos. EVENT & ACTIVITY PHOTOS: Marathon/race finish photos (MarathonFoto, Athlinks, RunSignUp), triathlon/cycling event photos, 5K/charity run photos, Spartan Race/Tough Mudder/obstacle course photos, golf tournament photos, tennis tournament photos, ski/snowboard resort photos, scuba diving certification photos, graduation ceremony photos, wedding photos (The Knot, WeddingWire, Zola, photographer websites), funeral/memorial photos, charity gala photos, fundraiser event photos, auction event photos, conference/convention photos, trade show photos, product launch event photos, book signing photos, meet-and-greet photos, fan convention photos (Comic-Con, etc.), concert/music festival photos, theater production photos, dance recital photos, art exhibition opening photos, church event photos, school event photos, PTA event photos, block party/neighborhood photos. VIDEO THUMBNAILS & STILLS: YouTube video thumbnails & channel art, Vimeo thumbnails, TikTok video stills, Instagram Reels thumbnails, Facebook video thumbnails, Twitch stream screenshots, podcast video thumbnails, webinar screenshots, online course thumbnails (Udemy, Coursera, Skillshare, MasterClass), TEDx/TED talk thumbnails, news broadcast screenshots, documentary stills, movie/TV show screenshots (IMDb photos), music video stills. DATING & LIFESTYLE PROFILES: Tinder profile photos (if publicly cached/leaked), Bumble, Hinge, Match.com, OkCupid, eHarmony, Plenty of Fish, Zoosk, Coffee Meets Bagel, Badoo, happn, Facebook Dating, Grindr (if publicly visible), Her, Feeld, Elite Singles, Seeking, WhatsYourPrice — check cached/archived versions where photos may be indexed. REVIEW SITE PHOTOS: Yelp reviewer profiles (with photos), Google Maps reviewer profiles, TripAdvisor reviewer photos, Amazon reviewer profiles, Goodreads author/reviewer photos, Apple App Store reviewer (if linked), Trustpilot reviewer profiles. CREATIVE/PORTFOLIO PHOTOS: Behance portraits & headshots, Dribbble profile photos, DeviantArt avatars, ArtStation profiles, 500px photographer profiles (and self-portraits), SmugMug, Flickr (self-portraits, tagged photos, group photos), Model Mayhem profiles, Casting Networks headshots, Actors Access headshots, Backstage.com headshots, talent agency portfolio photos (modeling composites/cards), photographer bio photos, artist bio photos (gallery websites). MEMORIAL & ARCHIVE PHOTOS: FindAGrave memorial photos, BillionGraves, Legacy.com obituary photos, funeral home websites, memorial tribute pages, historical photo archives (Library of Congress, National Archives, Smithsonian, state historical societies), newspaper archive photos (Newspapers.com), Wayback Machine cached photos (archive.org), old Myspace/Friendster/Hi5 cached profile photos, Google cached images, archived social media via Wayback Machine. GOVERNMENT & OFFICIAL PHOTOS: Official government portraits (.gov sites), congressional/senate official photos, state legislature member photos, city council member photos, school board member photos, judge portraits, ambassador photos, military official portraits, law enforcement personnel photos, fire department roster photos, NASA astronaut photos, postal worker photos (USPS), DMV/driver license photos (NOT publicly searchable but can confirm), passport photos (NOT public), visa application photos (NOT public). MISCELLANEOUS PHOTO SOURCES: Cameo profile photos, Patreon creator photos, OnlyFans creator photos (where public), Substack author photos, Medium author photos, WordPress/blog author avatars, GitHub/GitLab profile photos, Stack Overflow avatars, Gravatar linked photos, QR code linked profile photos, NFC/business card digital photos, real estate listing photos (homeowner in photo), car listing photos (seller in photo on Craigslist/Facebook Marketplace), pet adoption photos (owner in photo), GoFundMe campaign photos, Kickstarter/Indiegogo creator photos, Change.org petition creator photos, Nextdoor profile photos, neighborhood watch photos, local newspaper community photos, church directory photos, club newsletter photos, HOA/condo association photos, volunteer organization photos, charity board member photos, professional association member directory photos.');
+    if(cats.includes('genealogy'))I.push('GENEALOGY & HISTORY — Search exhaustively: Ancestry.com records, FamilySearch.org, MyHeritage, FindAGrave.com, BillionGraves, obituary databases (Legacy.com, newspapers), census records (US Census 1790-present, foreign censuses), birth/death/marriage records (vital statistics offices), immigration/naturalization records (Ellis Island, Castle Garden, Ancestry immigration), ship manifest records, passport applications, Social Security Death Index (SSDI), cemetery records, church baptism/marriage/burial records, DNA matching databases (23andMe, AncestryDNA), family tree databases, lineage society records (DAR, SAR, Mayflower Society), historical newspaper archives (Newspapers.com, Chronicling America, Google News Archive), historical photo archives (Library of Congress, National Archives, Shorpy, state historical societies), yearbook archives, city directory archives (old phone books), historical society membership, military pension records, homestead records, land grant records, slave schedules & freedmen records, historical court records, wills & probate records, estate records, historical business directories, Wikipedia biography articles, encyclopedia entries (Britannica), biographical dictionaries (Who\'s Who), memorial/tribute pages, legacy/tribute websites.');
+    return I.join('\n\n');
+  }
+
+  /* ═══ Puter.js Deep (6-pass) ═══ */
+  async function callPuter(){
+    const ctx=getUserContext();
+    const contextNote=ctx?`\n\nUSER-PROVIDED CONTEXT: ${ctx}`:'';
+    const dataURL=`data:${mimeType};base64,${base64Data}`;
+    const imageMsg=[{type:'text',text:'Analyze this image thoroughly.'},{type:'image_url',image_url:{url:dataURL}}];
+    const isDeep=searchDepth==='deep';
+    const cats=getActiveCats();
+    const totalPasses=isDeep?6:4;
+
+    const passLabels=[
+      'Describing image contents',
+      'Identifying people',
+      isDeep?'Cross-referencing sources':'Researching people',
+      isDeep?'Deep searching '+cats.length+' categories':'Generating follow-up questions',
+      ...(isDeep?['Compiling profiles','Generating follow-up questions']:[])
+    ];
+    function updateSteps(i){setPass(passLabels.map((l,j)=>({label:l,status:j<i?'done':j===i?'active':''})))}
+
+    /* P1: Describe */
+    updateSteps(0);$('spinnerText').textContent=`Pass 1/${totalPasses}: Describing image\u2026`;
+    const p1=await puterChat([
+      {role:'system',content:`You are an image description expert. Describe this image in exhaustive detail. Reply with ONLY valid JSON.${contextNote}
+For every person: appearance (estimated age, gender, ethnicity, build, hair color/style, skin tone, distinctive facial features, facial hair), clothing (exact colors, patterns, brands, logos, uniforms, badges, name tags, jersey numbers, accessories, jewelry, watches, hats, glasses), posture/action/expression, ALL text visible near them.
+For the scene: setting type, ALL visible text anywhere (signs, banners, watermarks, captions, podium text, headlines, nameplates, trophies, certificates, diplomas, IDs), landmarks, buildings, flags, logos, event branding, school/university emblems, company logos.
+JSON: {"people":[{"appearance":"...","clothing":"...","action":"...","nearby_text":"...","distinguishing_marks":"..."}],"scene":{"setting":"...","event_type":"...","organization":"...","time_period":"..."},"all_visible_text":["..."],"logos_and_emblems":["..."],"locations_visible":[{"name":"...","confidence":90,"info":"..."}],"scene_summary":"..."}`},
+      {role:'user',content:imageMsg}
+    ],{models:ALL_MODELS,max_tokens:3500});
+    if(!p1)throw new Error('Could not analyze image.');
+    lastPass1Data=p1.data;
+
+    const people=p1.data.people||[], visibleText=(p1.data.all_visible_text||[]).join(', '),
+      logos=(p1.data.logos_and_emblems||[]).join(', '), scene=p1.data.scene||{}, summary=p1.data.scene_summary||'';
+
+    /* P2: Identify */
+    updateSteps(1);$('spinnerText').textContent=`Pass 2/${totalPasses}: Identifying people\u2026`;
+    let identified=[];
+    if(people.length>0){
+      const desc=people.map((p,i)=>`Person ${i+1}:\n  Appearance: ${p.appearance||'N/A'}\n  Clothing: ${p.clothing||'N/A'}\n  Action: ${p.action||'N/A'}\n  Text near them: ${p.nearby_text||'None'}\n  Distinguishing marks: ${p.distinguishing_marks||'None'}`).join('\n\n');
+      const p2=await puterChat(`You are an expert at identifying people from detailed descriptions.${contextNote}\nSCENE: ${scene.setting||summary}\nEvent: ${scene.event_type||'Unknown'}\nOrg: ${scene.organization||'Unknown'}\nVisible text: ${visibleText||'None'}\nLogos: ${logos||'None'}\n\nPEOPLE:\n${desc}\n\nUse ALL clues. Reply ONLY valid JSON:\n{"people":[{"name":"...","confidence":85,"role":"...","evidence":"...","possible_aliases":["..."],"organization":"..."}]}`,{models:['claude-sonnet-4-5-20250929','gpt-4o'],max_tokens:2500});
+      if(p2?.data?.people)identified=p2.data.people;
+    }
+    if(!identified.length&&people.length)identified=people.map(p=>({name:p.nearby_text||p.appearance?.slice(0,50)||'Unknown person',confidence:35,role:p.action||'Visible in image',evidence:`Appearance: ${p.appearance}`,possible_aliases:[],organization:''}));
+    lastIdentified=identified;
+
+    if(!isDeep){
+      updateSteps(2);$('spinnerText').textContent=`Pass 3/4: Researching\u2026`;
+      const fp=await researchPeople(identified);
+      updateSteps(3);$('spinnerText').textContent='Pass 4/4: Follow-up questions\u2026';
+      const q=await generateQuestions(fp,summary,visibleText,scene);
+      updateSteps(4);return buildResult(fp,p1.data,summary,q);
+    }
+
+    /* P3: Cross-ref */
+    updateSteps(2);$('spinnerText').textContent=`Pass 3/${totalPasses}: Cross-referencing\u2026`;
+    const crossRef=identified.map(p=>`- "${p.name}" (${p.role||'?'}, ${p.confidence}%) | Evidence: ${p.evidence||'N/A'} | Org: ${p.organization||'N/A'}`).join('\n');
+    const p3=await puterChat(`Cross-reference these identifications.${contextNote}\nScene: ${summary}\nText: ${visibleText||'None'}\nLogos: ${logos||'None'}\n\n${crossRef}\n\nVerify each. Reply ONLY valid JSON:\n{"people":[{"name":"...","confidence":90,"role":"...","evidence":"...","verified":true,"alternate_candidates":["..."],"organization":"...","nationality":"..."}]}`,{models:['claude-sonnet-4-5-20250929','gpt-4o'],max_tokens:2500});
+    let verified=identified;if(p3?.data?.people)verified=p3.data.people;
+
+    /* P4: Deep search */
+    updateSteps(3);$('spinnerText').textContent=`Pass 4/${totalPasses}: Deep searching ${cats.length} categories\u2026`;
+    const si=buildSearchInstructions(cats);
+    const vl=verified.map(p=>`- "${p.name}" | ${p.role||'N/A'} | Org: ${p.organization||'N/A'} | ${p.confidence}%`).join('\n');
+    const p4=await puterChat(`OSINT research specialist. Research each person exhaustively.${contextNote}\n\nPEOPLE:\n${vl}\n\nScene: ${summary}\n\nCATEGORIES:\n${si}\n\nReply ONLY valid JSON:\n{"people":[{"name":"...","confidence":90,"role":"...","bio":"4-6 sentences","key_facts":["..."],"evidence":"...","social_media":{"twitter":"...","instagram":"...","linkedin":"...","facebook":"...","tiktok":"...","youtube":"..."},"education":[{"school":"...","degree":"...","year":"...","notes":"..."}],"professional":{"current_position":"...","employer":"...","previous_roles":["..."],"industry":"..."},"news_mentions":["..."],"sports_info":{"team":"...","position":"...","number":"...","stats":"...","draft":"..."},"government_info":{"title":"...","office":"...","party":"...","district":"..."},"entertainment_info":{"known_for":"...","awards":["..."],"filmography":["..."]},"academic_info":{"field":"...","publications":["..."],"institution":"..."},"military_info":{"branch":"...","rank":"...","service_years":"..."},"sources_found":["social","school","professional","news","sports","government","entertainment","academic","military"]}]}`,{models:ALL_MODELS,max_tokens:4000});
+    let deepPeople=[];if(p4?.data?.people)deepPeople=p4.data.people;
+
+    /* P5: Compile */
+    updateSteps(4);$('spinnerText').textContent=`Pass 5/${totalPasses}: Compiling profiles\u2026`;
+    if(!deepPeople.length)deepPeople=await researchPeople(verified);
+    else{
+      const gaps=deepPeople.filter(p=>!p.bio||p.bio.length<50).map(p=>p.name);
+      if(gaps.length){const er=await puterChat(`Provide bios for: ${gaps.join(', ')}\nReply ONLY JSON: {"people":[{"name":"...","bio":"...","key_facts":["..."]}]}`,{models:ALL_MODELS,max_tokens:2500});
+        if(er?.data?.people)for(const ep of er.data.people){const m=deepPeople.find(d=>d.name.toLowerCase()===ep.name.toLowerCase());if(m){if(!m.bio||m.bio.length<50)m.bio=ep.bio;if(!m.key_facts?.length)m.key_facts=ep.key_facts}}
+      }
+    }
+    const finalPeople=normalizePeople(deepPeople);
+
+    /* P6: Questions */
+    updateSteps(5);$('spinnerText').textContent=`Pass 6/${totalPasses}: Follow-up questions\u2026`;
+    const questions=await generateQuestions(finalPeople,summary,visibleText,scene);
+    updateSteps(6);return buildResult(finalPeople,p1.data,summary,questions);
+  }
+
+  /* ═══════════════════════════════════════════════════════
+     ULTRA DEEP — 16-Pass Exhaustive Pipeline with Iterative Loop
+     Searches EVERY corner of the internet until match found
+     ═══════════════════════════════════════════════════════ */
+  async function callPuterUltra(){
+    const ctx=getUserContext();
+    const contextNote=ctx?`\n\nUSER-PROVIDED CONTEXT: ${ctx}`:'';
+    const dataURL=`data:${mimeType};base64,${base64Data}`;
+    const imageMsg=[{type:'text',text:'Analyze this image thoroughly.'},{type:'image_url',image_url:{url:dataURL}}];
+    const cats=ALL_CATS;
+    const T=20;
+
+    const PL=[
+      'Multi-model image description + visual features (3 models)',
+      'Multi-model identification (3 models)',
+      'Consensus merge & conflict resolution',
+      'Cross-reference & image re-verification',
+      'Deep search: Social + Professional + Schools',
+      'Deep search: News + Entertainment + Sports',
+      'Deep search: Government + Military + Legal',
+      'Deep search: Tech + Academic + Creative Arts',
+      'Deep search: Business/RE + International + Community',
+      'Deep search: Genealogy/History + Exhaustive Sweep',
+      'Photo & Image hunt — every photo source on the internet',
+      'Resume & CV database search',
+      'Public records & people-finder deep dive',
+      'Cross-validate all findings',
+      'Iterative re-identification (loop until found)',
+      'Alternative strategies & lateral search',
+      'Image re-verification & visual matching',
+      'Kitchen sink — final exhaustive sweep',
+      'Confidence calibration & fact-check',
+      'Compile final comprehensive profiles'
+    ];
+    function US(i){setPass(PL.map((l,j)=>({label:l,status:j<i?'done':j===i?'active':''})))}
+
+    /* ── PASS 1: Multi-model description (parallel) ── */
+    US(0);$('spinnerText').textContent=`Pass 1/${T}: Multi-model image description\u2026`;
+
+    const descResults=await puterChatAll([
+      {role:'system',content:`You are an image description expert AND visual forensics specialist. Describe in exhaustive detail optimized for identification. Reply ONLY valid JSON.${contextNote}
+For every person — FACIAL FEATURES FOR MATCHING: face shape (oval/round/square/heart/oblong), eye color, eye shape, eyebrow shape & thickness, nose shape & size, lip shape, chin shape, jawline, cheekbone prominence, forehead height, ear shape/size, facial symmetry notes, estimated age (narrow range like 35-40), exact skin tone, facial hair (mustache type, beard style, stubble, clean-shaven), hair color/style/length/texture/part, hairline (receding, widow's peak, straight), wrinkles/lines pattern, dimples, moles, birthmarks, scars, freckles, acne, tattoos on neck/face/hands.
+BODY & CLOTHING: exact height estimate, build (slim/athletic/average/heavy), posture, hand position, exact clothing (colors, patterns, brands, logos, uniforms, badges, lanyards, ID badges with text, name tags, jersey numbers, accessories, jewelry type & style, watch brand/style, hat/cap type, glasses frame style & color, shoes if visible), distinctive accessories (pins, brooches, cufflinks, tie patterns, pocket squares).
+IMAGE SEARCH CLUES: photo quality/type (professional headshot, candid, press photo, selfie, group shot, stock photo watermarks), camera angle, lighting, background type, image metadata clues, any watermarks or photo credits, photographer/agency names visible.
+Scene: setting, ALL visible text EVERYWHERE (signs, banners, watermarks, captions, podium text, headlines, nameplates, trophies, certificates, diplomas, ID badges, lanyards, URLs, hashtags, email addresses, phone numbers, QR codes), landmarks, buildings, flags, logos, emblems.
+JSON: {"people":[{"appearance":"...","facial_features":"detailed face description for matching","clothing":"...","action":"...","nearby_text":"...","distinguishing_marks":"...","estimated_height":"...","body_type":"...","image_search_clues":"what reverse image search would key on"}],"scene":{"setting":"...","event_type":"...","organization":"...","time_period":"..."},"all_visible_text":["..."],"logos_and_emblems":["..."],"locations_visible":[{"name":"...","confidence":90,"info":"..."}],"scene_summary":"...","photo_type":"...","image_source_clues":"..."}`},
+      {role:'user',content:imageMsg}
+    ],{max_tokens:5000});
+
+    if(!descResults.length)throw new Error('No model could analyze the image.');
+
+    /* Merge descriptions from all models */
+    const mergedPeople=[];const seenAppearances=new Set();
+    const mergedText=new Set();const mergedLogos=new Set();const mergedLocations=[];
+    let bestScene={},bestSummary='';
+
+    for(const r of descResults){
+      const d=r.data;
+      (d.people||[]).forEach(p=>{
+        const key=(p.appearance||'').slice(0,40).toLowerCase();
+        if(!seenAppearances.has(key)){seenAppearances.add(key);mergedPeople.push({...p,_from:r.model})}
+        else{const existing=mergedPeople.find(mp=>(mp.appearance||'').slice(0,40).toLowerCase()===key);
+          if(existing){existing.clothing=[existing.clothing,p.clothing].filter(Boolean).join('; ');existing.nearby_text=[existing.nearby_text,p.nearby_text].filter(Boolean).join('; ')}}
+      });
+      (d.all_visible_text||[]).forEach(t=>mergedText.add(t));
+      (d.logos_and_emblems||[]).forEach(l=>mergedLogos.add(l));
+      (d.locations_visible||[]).forEach(l=>{if(!mergedLocations.find(ml=>ml.name===l.name))mergedLocations.push(l)});
+      if(d.scene&&(!bestScene.setting||d.scene.setting?.length>(bestScene.setting?.length||0)))bestScene=d.scene;
+      if(d.scene_summary&&d.scene_summary.length>(bestSummary.length||0))bestSummary=d.scene_summary;
+    }
+
+    const p1merged={people:mergedPeople,scene:bestScene,all_visible_text:[...mergedText],logos_and_emblems:[...mergedLogos],locations_visible:mergedLocations,scene_summary:bestSummary};
+    lastPass1Data=p1merged;
+
+    const visibleText=[...mergedText].join(', ');
+    const logos=[...mergedLogos].join(', ');
+    const scene=bestScene;const summary=bestSummary;
+
+    /* ── PASS 2: Multi-model identification (parallel) ── */
+    US(1);$('spinnerText').textContent=`Pass 2/${T}: Multi-model identification\u2026`;
+
+    let allIdentifications=[];
+    if(mergedPeople.length>0){
+      const desc=mergedPeople.map((p,i)=>`Person ${i+1}:\n  Appearance: ${p.appearance||'N/A'}\n  Facial features: ${p.facial_features||'N/A'}\n  Clothing: ${p.clothing||'N/A'}\n  Action: ${p.action||'N/A'}\n  Text near them: ${p.nearby_text||'None'}\n  Distinguishing marks: ${p.distinguishing_marks||'None'}\n  Height/Build: ${p.estimated_height||'?'} / ${p.body_type||'?'}\n  Image search clues: ${p.image_search_clues||'None'}`).join('\n\n');
+
+      const photoType=p1merged.photo_type||'';
+      const imageSourceClues=p1merged.image_source_clues||'';
+
+      const idPrompt=`Expert at identifying people from descriptions AND visual forensics. Use ALL available clues including facial features, clothing, context, and image metadata. Think like a reverse image search engine — what facial features, distinctive marks, and contextual clues would match this person to known photos? Also consider: if this looks like a press photo, who is commonly photographed at events like this? If there's a watermark or credit, what photographer/agency shot this?${contextNote}\nSCENE: ${scene.setting||summary}\nEvent: ${scene.event_type||'Unknown'}\nOrg: ${scene.organization||'Unknown'}\nTime: ${scene.time_period||'Unknown'}\nText: ${visibleText||'None'}\nLogos: ${logos||'None'}\nPhoto type: ${photoType||'Unknown'}\nImage source clues: ${imageSourceClues||'None'}\n\nPEOPLE:\n${desc}\n\nUse ALL clues — facial features, clothing brands, accessories, visible text, badges, lanyards, context. Reply ONLY valid JSON:\n{"people":[{"name":"...","confidence":85,"role":"...","evidence":"...","possible_aliases":["..."],"organization":"...","facial_match_notes":"what facial features helped identify them"}]}`;
+
+      const idResults=await puterChatAll(idPrompt,{max_tokens:3000});
+      for(const r of idResults){if(r?.data?.people)allIdentifications.push({people:r.data.people,model:r.model})}
+    }
+
+    /* ── PASS 3: Consensus merge ── */
+    US(2);$('spinnerText').textContent=`Pass 3/${T}: Merging consensus from ${allIdentifications.length} models\u2026`;
+
+    let identified=[];
+    if(allIdentifications.length>0){
+      /* Build consensus: group by person index, take majority vote on names */
+      const maxPeople=Math.max(...allIdentifications.map(r=>r.people.length));
+      for(let i=0;i<maxPeople;i++){
+        const candidates=allIdentifications.map(r=>r.people[i]).filter(Boolean);
+        if(!candidates.length)continue;
+
+        /* Vote on name */
+        const nameVotes={};
+        candidates.forEach(c=>{const n=(c.name||'Unknown').toLowerCase();nameVotes[n]=(nameVotes[n]||0)+1});
+        const topName=Object.entries(nameVotes).sort((a,b)=>b[1]-a[1])[0];
+        const winner=candidates.find(c=>(c.name||'').toLowerCase()===topName[0])||candidates[0];
+        const voteCount=topName[1];
+        const totalVotes=candidates.length;
+        const consensusBoost=voteCount>1?Math.min(15,voteCount*5):0;
+
+        /* Merge evidence from all models */
+        const allEvidence=candidates.map(c=>c.evidence).filter(Boolean);
+        const allAliases=[...new Set(candidates.flatMap(c=>c.possible_aliases||[]))];
+        const allOrgs=[...new Set(candidates.map(c=>c.organization).filter(Boolean))];
+        const modelsAgreed=allIdentifications.filter(r=>(r.people[i]?.name||'').toLowerCase()===topName[0]).map(r=>r.model);
+
+        identified.push({
+          name:winner.name,
+          confidence:Math.min(99,Math.max(winner.confidence||50,candidates.reduce((m,c)=>Math.max(m,c.confidence||0),0))+consensusBoost),
+          role:winner.role||candidates.find(c=>c.role)?.role||'',
+          evidence:allEvidence.join(' | '),
+          possible_aliases:allAliases,
+          organization:allOrgs.join(', ')||winner.organization||'',
+          _models_agreed:modelsAgreed,
+          _vote_count:`${voteCount}/${totalVotes}`
+        });
+      }
+    }
+    if(!identified.length&&mergedPeople.length)identified=mergedPeople.map(p=>({name:p.nearby_text||p.appearance?.slice(0,50)||'Unknown',confidence:30,role:p.action||'',evidence:`Appearance: ${p.appearance}`,possible_aliases:[],organization:'',_models_agreed:[],_vote_count:'0/0'}));
+    lastIdentified=identified;
+
+    /* ── PASS 4: Cross-reference & image re-verification ── */
+    US(3);$('spinnerText').textContent=`Pass 4/${T}: Cross-referencing & image re-verification\u2026`;
+
+    const crossRefList=identified.map(p=>`- "${p.name}" (${p.role||'?'}, ${p.confidence}%, ${p._vote_count} models agreed) | Evidence: ${p.evidence||'N/A'} | Org: ${p.organization||'N/A'} | Aliases: ${(p.possible_aliases||[]).join(',')||'None'} | Facial: ${p.facial_match_notes||'N/A'}`).join('\n');
+
+    /* Re-send the image with identified names to verify visually */
+    const verifyImageResults=await puterChatAll([
+      {role:'system',content:`You are a visual verification expert. You have been given an image and a list of proposed identifications. Look at each person in the image and verify: does this person LOOK LIKE the identified person? Check if their facial features, age, build, and style match what you know about the identified person. Think about what Google Image Search, TinEye, PimEyes, Yandex Images, and facial recognition databases would show for each face. Also look for ANY text, badges, credentials, or visual clues that were missed in the first pass.${contextNote}\n\nPROPOSED IDENTIFICATIONS:\n${crossRefList}\n\nFor each: verify visually, correct if wrong, flag uncertainty. Check if the person's known appearance matches what you see. Reply ONLY JSON:\n{"people":[{"name":"...","confidence":90,"role":"...","evidence":"...","verified":true,"visual_match":"does the face match known photos of this person","alternate_candidates":["..."],"organization":"...","nationality":"...","missed_clues":"any text/badges/details missed earlier"}]}`},
+      {role:'user',content:imageMsg}
+    ],{max_tokens:3000});
+
+    /* Also do text-based cross-reference */
+    const p4text=await puterChat(`Cross-reference & verify identifications. Check for errors, confusions, name spelling.${contextNote}\nScene: ${summary}\nText: ${visibleText}\nLogos: ${logos}\n\n${crossRefList}\n\nFor each: verify identity, correct spelling, flag any that might be wrong. Reply ONLY JSON:\n{"people":[{"name":"...","confidence":90,"role":"...","evidence":"...","verified":true,"alternate_candidates":["..."],"organization":"...","nationality":"..."}]}`,{models:['claude-sonnet-4-5-20250929','gpt-4o'],max_tokens:2500});
+
+    /* Merge visual verification with text cross-reference */
+    let verified=identified;
+    if(p4text?.data?.people)verified=p4text.data.people;
+    for(const vr of verifyImageResults){
+      if(!vr?.data?.people)continue;
+      for(const vp of vr.data.people){
+        const match=verified.find(v=>v.name?.toLowerCase()===vp.name?.toLowerCase());
+        if(match){
+          if(vp.visual_match)match._visual_match=vp.visual_match;
+          if(vp.missed_clues&&vp.missed_clues!=='None'&&vp.missed_clues!=='N/A')match.evidence=(match.evidence||'')+' | Visual: '+vp.missed_clues;
+          if((vp.confidence||0)>(match.confidence||0))match.confidence=vp.confidence;
+          if(vp.alternate_candidates?.length)match.alternate_candidates=[...new Set([...(match.alternate_candidates||[]),...vp.alternate_candidates])];
+        }
+      }
+    }
+
+    /* ── PASS 5: Deep search batch 1 — Social + Professional + Schools ── */
+    US(4);$('spinnerText').textContent=`Pass 5/${T}: Searching social media, professional, schools\u2026`;
+    const vList=verified.map(p=>`- "${p.name}" | ${p.role||'N/A'} | Org: ${p.organization||'N/A'} | Nationality: ${p.nationality||'N/A'} | ${p.confidence}%`).join('\n');
+    const si1=buildSearchInstructions(['social','school','professional']);
+    const p5=await puterChat(`OSINT specialist. Search EVERY source exhaustively until you find matches. Do NOT give up. Check every platform.${contextNote}\n\nPEOPLE:\n${vList}\nScene: ${summary}\n\nCATEGORIES:\n${si1}\n\nReply ONLY JSON:\n{"people":[{"name":"...","social_media":{"twitter":"...","instagram":"...","linkedin":"...","facebook":"...","tiktok":"...","youtube":"...","reddit":"...","threads":"...","bluesky":"...","twitch":"...","snapchat":"...","pinterest":"...","discord":"...","github":"...","other":"..."},"education":[{"school":"...","degree":"...","year":"...","notes":"..."}],"professional":{"current_position":"...","employer":"...","previous_roles":["..."],"industry":"...","linkedin_headline":"...","patents":["..."],"board_memberships":["..."]},"sources_found":["social","school","professional"]}]}`,{models:ALL_MODELS,max_tokens:4000});
+    let batch1=[];if(p5?.data?.people)batch1=p5.data.people;
+
+    /* ── PASS 6: Deep search batch 2 — News + Entertainment + Sports ── */
+    US(5);$('spinnerText').textContent=`Pass 6/${T}: Searching news, entertainment, sports\u2026`;
+    const si2=buildSearchInstructions(['news','entertainment','sports']);
+    const p6=await puterChat(`OSINT specialist. Search EVERY source. Leave no stone unturned.${contextNote}\n\nPEOPLE:\n${vList}\nScene: ${summary}\n\nCATEGORIES:\n${si2}\n\nReply ONLY JSON:\n{"people":[{"name":"...","news_mentions":["..."],"entertainment_info":{"known_for":"...","awards":["..."],"filmography":["..."],"discography":["..."],"imdb":"...","tv_appearances":["..."],"theater":["..."]},"sports_info":{"team":"...","position":"...","number":"...","stats":"...","draft":"...","awards":["..."],"college_sports":"...","international":"..."},"sources_found":["news","entertainment","sports"]}]}`,{models:ALL_MODELS,max_tokens:4000});
+    let batch2=[];if(p6?.data?.people)batch2=p6.data.people;
+
+    /* ── PASS 7: Deep search batch 3 — Government + Military + Legal ── */
+    US(6);$('spinnerText').textContent=`Pass 7/${T}: Searching government, military, legal\u2026`;
+    const si3=buildSearchInstructions(['government','military','legal']);
+    const p7=await puterChat(`OSINT specialist. Search EVERY government database, military record, and court system.${contextNote}\n\nPEOPLE:\n${vList}\nScene: ${summary}\n\nCATEGORIES:\n${si3}\n\nReply ONLY JSON:\n{"people":[{"name":"...","government_info":{"title":"...","office":"...","party":"...","district":"...","committees":["..."],"voting_record":"...","campaign_finance":"..."},"military_info":{"branch":"...","rank":"...","service_years":"...","unit":"...","decorations":["..."],"deployments":["..."],"academy":"..."},"legal_info":{"cases":["..."],"bar_membership":"...","law_firm":"...","judgeship":"...","patents":["..."]},"sources_found":["government","military","legal"]}]}`,{models:ALL_MODELS,max_tokens:4000});
+    let batch3=[];if(p7?.data?.people)batch3=p7.data.people;
+
+    /* ── PASS 8: Deep search batch 4 — Tech + Academic + Creative ── */
+    US(7);$('spinnerText').textContent=`Pass 8/${T}: Searching tech, academic, creative arts\u2026`;
+    const si4=buildSearchInstructions(['tech','academic','creative']);
+    const p8b=await puterChat(`OSINT specialist. Search every tech platform, academic database, and creative directory.${contextNote}\n\nPEOPLE:\n${vList}\nScene: ${summary}\n\nCATEGORIES:\n${si4}\n\nReply ONLY JSON:\n{"people":[{"name":"...","tech_info":{"github":"...","stackoverflow":"...","repos":["..."],"languages":["..."],"companies_founded":["..."],"open_source":["..."],"tech_talks":["..."]},"academic_info":{"field":"...","publications":["..."],"institution":"...","h_index":"...","google_scholar":"...","awards":["..."],"phd_thesis":"..."},"creative_info":{"medium":"...","galleries":["..."],"exhibitions":["..."],"collections":["..."],"awards":["..."],"portfolio":"..."},"sources_found":["tech","academic","creative"]}]}`,{models:ALL_MODELS,max_tokens:4000});
+    let batch4=[];if(p8b?.data?.people)batch4=p8b.data.people;
+
+    /* ── PASS 9: Deep search batch 5 — Business/RE + International + Community ── */
+    US(8);$('spinnerText').textContent=`Pass 9/${T}: Searching business, international, community\u2026`;
+    const si5=buildSearchInstructions(['realestate','international','community']);
+    const p9b=await puterChat(`OSINT specialist. Search every business registry, international database, and community source.${contextNote}\n\nPEOPLE:\n${vList}\nScene: ${summary}\n\nCATEGORIES:\n${si5}\n\nReply ONLY JSON:\n{"people":[{"name":"...","business_info":{"companies":["..."],"sec_filings":["..."],"property_owned":["..."],"trademarks":["..."],"business_licenses":["..."],"net_worth_est":"..."},"international_info":{"countries":["..."],"foreign_press":["..."],"international_orgs":["..."],"diplomatic_roles":["..."],"foreign_awards":["..."]},"community_info":{"local_orgs":["..."],"volunteer_work":["..."],"community_awards":["..."],"local_news_mentions":["..."],"church_membership":"...","clubs":["..."]},"sources_found":["realestate","international","community"]}]}`,{models:ALL_MODELS,max_tokens:4000});
+    let batch5=[];if(p9b?.data?.people)batch5=p9b.data.people;
+
+    /* ── PASS 10: Deep search batch 6 — Genealogy + History + Final sweep ── */
+    US(9);$('spinnerText').textContent=`Pass 10/${T}: Searching genealogy, history, exhaustive sweep\u2026`;
+    const si6=buildSearchInstructions(['genealogy']);
+    const p10b=await puterChat(`OSINT specialist. Search every genealogy database, historical archive, and any remaining source. Also search: Wikipedia, Wikidata, obituaries, wedding announcements, birth announcements, yearbook archives, phone directories, people search engines (Whitepages, Spokeo, BeenVerified, Pipl, ThatsThem, FastPeopleSearch, TruePeopleSearch, Radaris, Intelius), dating profiles (where public), gaming profiles (Steam, Xbox, PSN, Epic Games, Riot Games), food/culinary (Yelp, restaurant ownership, cookbook authors, food blogs, James Beard, Michelin), fashion (models.com, agency rosters, Fashion Week credits), aviation (FAA airmen, pilot records), maritime (USCG, ship manifests), religious organizations (church directories, clergy lists, denominational records).${contextNote}\n\nPEOPLE:\n${vList}\nScene: ${summary}\n\nCATEGORIES:\n${si6}\n\nALSO SEARCH: People search engines, Wikipedia/Wikidata, obituaries, wedding/birth announcements, gaming profiles, dating profiles (public), phone directories, yearbooks, EVERY remaining source.\n\nReply ONLY JSON:\n{"people":[{"name":"...","genealogy_info":{"birth_records":"...","family_members":["..."],"ancestry":"...","immigration_records":"...","census_records":["..."]},"historical_info":{"wikipedia":"...","notable_events":["..."],"archival_records":["..."]},"misc_info":{"people_search_results":["..."],"gaming_profiles":["..."],"wikipedia_url":"...","phone_directory":"...","obituary_mentions":["..."],"wedding_announcements":["..."]},"sources_found":["genealogy"]}]}`,{models:ALL_MODELS,max_tokens:4000});
+    let batch6=[];if(p10b?.data?.people)batch6=p10b.data.people;
+
+    /* ── PASS 11: Photo & Image hunt — every photo source on the internet ── */
+    US(10);$('spinnerText').textContent=`Pass 11/${T}: Photo & image hunt across the entire internet\u2026`;
+    const siPhoto=buildSearchInstructions(['photo']);
+    const photoList=verified.map(p=>`- "${p.name}" | ${p.role||'N/A'} | Org: ${p.organization||'N/A'} | ${p.confidence}% | Appearance: ${mergedPeople.find(mp=>mp.appearance?.toLowerCase().includes(p.name?.split(' ')[0]?.toLowerCase()))?.appearance||mergedPeople[0]?.appearance||'N/A'} | Facial features: ${mergedPeople.find(mp=>mp.facial_features?.toLowerCase().includes(p.name?.split(' ')[0]?.toLowerCase()))?.facial_features||mergedPeople[0]?.facial_features||'N/A'}`).join('\n');
+    const pPhoto=await puterChat(`You are a photo forensics and reverse image search specialist. Your mission: find EVERY SINGLE PHOTO of each identified person anywhere on the internet. Think like every image search engine combined — Google Images, TinEye, Yandex, PimEyes, Bing Visual Search, Baidu, FaceCheck.ID. Search every photo database, stock photo site, press photo agency, social media profile, yearbook archive, mugshot database, event photo gallery, professional headshot directory, video thumbnail, cached/archived photo, and any other image source that could contain a photo of this person.${contextNote}
+
+PEOPLE:\n${photoList}\nScene: ${summary}
+
+${siPhoto}
+
+For each person, compile a comprehensive list of WHERE their photos can be found. Report every source. Reply ONLY JSON:
+{"people":[{"name":"...","photo_info":{"profile_pictures":{"platforms_with_photos":["list every platform where their profile photo exists"],"primary_photo_source":"where the best/most recognizable photo is","photo_description":"describe their most commonly used profile photo"},"press_photos":{"agencies":["Getty","AP","Reuters",etc],"notable_photos":["description of notable press photos"],"red_carpet":["events where photographed"],"press_conferences":["events"]},"professional_headshots":{"company_page":"url or company name","linkedin_photo":"description","conference_speaker_photos":["events"],"author_photos":["publications"],"agent_headshot":"agency name"},"yearbook_photos":{"schools":["school names with yearbook photos"],"years":["years found"],"clubs_teams_in_photos":["activities"]},"event_photos":{"events_photographed_at":["event names"],"race_photos":["marathon/race names"],"wedding_photos":"description","charity_gala_photos":["events"],"conference_photos":["events"]},"video_thumbnails":{"youtube_thumbnails":["video titles"],"tiktok_thumbnails":["descriptions"],"podcast_thumbnails":["show names"],"webinar_screenshots":["topics"],"news_broadcast_stills":["programs"]},"social_media_photos":{"instagram_photos":"post count or description","facebook_photos":"description","twitter_photos":"description","tiktok_videos":"description","tagged_photos":"platforms where tagged by others"},"archived_photos":{"wayback_machine":["old urls with photos"],"old_social_media":["myspace/friendster/etc"],"google_cache":"description","newspaper_archives":["papers with photos"]},"mugshot_databases":{"found_in":["database names"],"booking_photos":"yes/no","sex_offender_registry":"yes/no"},"stock_photos":{"is_stock_model":"yes/no","found_on":["stock sites"],"categories":["what type of stock photos"]},"total_photo_sources_found":0,"photo_search_summary":"comprehensive summary of all photo sources found"},"sources_found":["photo"]}]}`,{models:ALL_MODELS,max_tokens:5000});
+    let batchPhoto=[];if(pPhoto?.data?.people)batchPhoto=pPhoto.data.people;
+
+    /* Merge all 7 batches */
+    const mergedDeep=verified.map((v,i)=>{
+      const findB=(batch,name,idx)=>batch.find(b=>b.name?.toLowerCase()===name?.toLowerCase())||batch[idx]||{};
+      const b1=findB(batch1,v.name,i), b2=findB(batch2,v.name,i), b3=findB(batch3,v.name,i);
+      const b4=findB(batch4,v.name,i), b5=findB(batch5,v.name,i), b6=findB(batch6,v.name,i);
+      const bP=findB(batchPhoto,v.name,i);
+      const allSources=[...new Set([...(b1.sources_found||[]),...(b2.sources_found||[]),...(b3.sources_found||[]),...(b4.sources_found||[]),...(b5.sources_found||[]),...(b6.sources_found||[]),...(bP.sources_found||[])])];
+      return{
+        name:v.name,confidence:v.confidence,role:v.role||'',evidence:v.evidence||'',
+        alternate_candidates:v.alternate_candidates||identified[i]?.possible_aliases||[],
+        nationality:v.nationality||'',organization:v.organization||'',
+        social_media:b1.social_media||{},education:b1.education||[],professional:b1.professional||{},
+        news_mentions:b2.news_mentions||[],entertainment_info:b2.entertainment_info||{},
+        sports_info:b2.sports_info||{},
+        government_info:b3.government_info||{},military_info:b3.military_info||{},legal_info:b3.legal_info||{},
+        tech_info:b4.tech_info||{},academic_info:b4.academic_info||{},creative_info:b4.creative_info||{},
+        business_info:b5.business_info||{},international_info:b5.international_info||{},community_info:b5.community_info||{},
+        genealogy_info:b6.genealogy_info||{},historical_info:b6.historical_info||{},misc_info:b6.misc_info||{},
+        photo_info:bP.photo_info||{},
+        sources_found:allSources,
+        _models_agreed:identified[i]?._models_agreed||[],_vote_count:identified[i]?._vote_count||'',
+        resume_info:{},public_records:{}
+      };
+    });
+
+    /* ── PASS 12: Resume & CV database search ── */
+    US(11);$('spinnerText').textContent=`Pass 12/${T}: Searching resume & CV databases\u2026`;
+
+    const resumeList=mergedDeep.map(p=>`- "${p.name}" | ${p.role||'N/A'} | Org: ${p.organization||'N/A'} | ${p.confidence}% | Education: ${(p.education||[]).map(e=>e.school).join(', ')||'N/A'} | Professional: ${p.professional?.current_position||'N/A'} at ${p.professional?.employer||'N/A'}`).join('\n');
+    const pResume=await puterChat(`You are an expert at finding resumes, CVs, and professional profiles online. Search EVERY resume database and professional profile source for each person.${contextNote}
+
+PEOPLE:\n${resumeList}\nScene: ${summary}
+
+RESUME DATABASES TO SEARCH: LinkedIn (full profile with work history, education, skills, endorsements, certifications, volunteer work, publications, courses, projects, honors & awards), Indeed Resumes (public resume database), Monster profiles, ZipRecruiter candidate profiles, Glassdoor profiles, CareerBuilder resumes, SimplyHired, Resume-Library, LiveCareer public profiles, Dice (tech/IT resumes), Doximity (medical professionals), Hired.com profiles, AngelList/Wellfound startup resumes, Jobcase profiles, Google cached resumes (PDFs), personal websites with /resume /cv /about pages, university career center alumni profiles, speaker bios from conferences, author bios from publications, consultant profiles (McKinsey alumni, BCG, Bain, Deloitte), Upwork/Fiverr/Toptal freelancer profiles, expert witness CVs, academic CVs (university faculty pages), artistic CVs/portfolios, military service records (as resume), government employee profiles (USAJobs, government staff pages).
+
+For each person, compile their COMPLETE work history, skills, certifications, and career timeline. Reply ONLY JSON:
+{"people":[{"name":"...","resume_info":{"headline":"current title/tagline","work_history":[{"title":"...","company":"...","dates":"...","description":"..."}],"skills":["..."],"certifications":["..."],"languages_spoken":["..."],"volunteer_work":["..."],"publications":["..."],"awards":["..."],"career_summary":"3-5 sentence summary","resume_sources":["where found"]},"sources_found":["professional"]}]}`,{models:ALL_MODELS,max_tokens:4500});
+
+    if(pResume?.data?.people){
+      for(const rp of pResume.data.people){
+        const match=mergedDeep.find(d=>d.name?.toLowerCase()===rp.name?.toLowerCase());
+        if(match){
+          match.resume_info=rp.resume_info||{};
+          if(rp.sources_found?.length)match.sources_found=[...new Set([...(match.sources_found||[]),...rp.sources_found])];
+        }
+      }
+    }
+
+    /* ── PASS 13: Public records & people-finder deep dive ── */
+    US(12);$('spinnerText').textContent=`Pass 13/${T}: Public records & people-finder deep dive\u2026`;
+
+    const prList=mergedDeep.map(p=>`- "${p.name}" | ${p.role||'N/A'} | Age est: ${mergedPeople[0]?.appearance?.match(/\d{2,}/)?.[0]||'?'} | Nationality: ${p.nationality||'N/A'} | Location: ${p.organization||summary||'N/A'}`).join('\n');
+    const pPublic=await puterChat(`You are a public records investigator and people-search specialist. For each identified person, search EVERY people-finder database, public records aggregator, and information search tool to compile a complete profile.${contextNote}
+
+PEOPLE:\n${prList}\nScene: ${summary}
+
+PEOPLE-FINDER & INFO SEARCH TOOLS: Whitepages (name, address, phone, age, relatives), Spokeo (social media, email, phone, address, court records), BeenVerified (background checks, criminal records, contact info), Intelius (people search, reverse phone, address), TruePeopleSearch (free people search), FastPeopleSearch (free lookup), Radaris (people search, public records), ThatsThem (name, email, IP, phone), PeopleFinders (address, phone, age, relatives), ZabaSearch (free people search), USSearch, Pipl (deep web people search), Social Catfish (reverse image/name search), Instant Checkmate, US Search, SearchPeopleFree, AnyWho, 411.com, RealPeopleSearch, ClustrMaps.
+
+PUBLIC RECORDS: Voter registration records, property tax records (county assessor), deed transfers, mortgage records, vehicle registration (where public), professional license verification (state boards), business entity search (all 50 state SOS websites), UCC filings, bankruptcy court (PACER), civil & criminal court records (state & federal), marriage licenses, divorce decrees, birth certificates (where public), death records (SSDI), probate records, tax liens, judgments, assumed business names, charity/nonprofit registrations (IRS 990, state AG).
+
+ADDITIONAL INFO TOOLS: Google search (name + city, name + employer, name + school), Google Images (matching photos), social media cross-referencing (find same person across platforms), email pattern guessing (firstname.lastname@company.com), domain WHOIS, archived websites (Wayback Machine), Amazon reviews/wishlists (sometimes public), Venmo/PayPal (sometimes public), Strava/fitness app profiles (sometimes public), wedding registries (The Knot, Zola), baby registries, GoFundMe campaigns, Change.org petitions signed, neighborhood apps (Nextdoor).
+
+Reply ONLY JSON:
+{"people":[{"name":"...","public_records":{"addresses":["..."],"phone_numbers":["..."],"email_addresses":["..."],"age":"...","relatives":["..."],"property_records":["..."],"vehicles":["..."],"voter_registration":"...","court_records":["..."],"business_filings":["..."],"licenses":["..."],"financial_records":["..."],"online_presence":["list of all websites/profiles found"],"background_summary":"comprehensive 3-5 sentence summary"},"sources_found":["public_records"]}]}`,{models:ALL_MODELS,max_tokens:4500});
+
+    if(pPublic?.data?.people){
+      for(const pp of pPublic.data.people){
+        const match=mergedDeep.find(d=>d.name?.toLowerCase()===pp.name?.toLowerCase());
+        if(match){
+          match.public_records=pp.public_records||{};
+          if(pp.sources_found?.length)match.sources_found=[...new Set([...(match.sources_found||[]),...pp.sources_found])];
+        }
+      }
+    }
+
+    /* ── PASS 14: Cross-validate all findings ── */
+    US(13);$('spinnerText').textContent=`Pass 14/${T}: Cross-validating all findings\u2026`;
+
+    const validateSummary=mergedDeep.map(p=>{
+      const socCount=Object.values(p.social_media||{}).filter(v=>v&&v!=='null'&&v!=='N/A').length;
+      const resumeJobs=(p.resume_info?.work_history||[]).length;
+      const pubRecords=Object.values(p.public_records||{}).filter(v=>v&&(Array.isArray(v)?v.length:v!=='N/A')).length;
+      const photoSources=p.photo_info?.total_photo_sources_found||0;
+      return `"${p.name}" (${p.confidence}%): Role=${p.role}, Org=${p.organization}, Social=${socCount} accounts, Education=${(p.education||[]).length}, News=${(p.news_mentions||[]).length}, Legal=${(p.legal_info?.cases||[]).length}, Tech=${p.tech_info?.github||'none'}, Business=${(p.business_info?.companies||[]).length}, Community=${(p.community_info?.local_orgs||[]).length}, Resume=${resumeJobs} jobs, PublicRecords=${pubRecords} fields, PhotoSources=${photoSources}`;
+    }).join('\n');
+    const p11=await puterChat(`You are a fact-checker. Review ALL research findings across ALL categories for accuracy — including resume data, public records, people-finder results, and photo/image sources. Flag incorrect info, contradictions, confusions between people with similar names. Cross-check: does the resume work history match the professional info? Do public records addresses match known locations? Is the age consistent? Do the photo sources (press photos, yearbooks, profile pictures) show the SAME person?${contextNote}\n\nFINDINGS:\n${validateSummary}\nScene: ${summary}\n\nVerify: social handles match the person, education timeline fits age, professional history consistent, resume matches public records, photo sources show same person, no two people conflated, geographic consistency. Reply ONLY JSON:\n{"people":[{"name":"...","confidence_adjustment":0,"corrections":["what was wrong"],"verified_facts":["confirmed facts"],"flagged_issues":["potential problems"]}]}`,{models:['claude-sonnet-4-5-20250929','gpt-4o'],max_tokens:3000});
+
+    if(p11?.data?.people){
+      for(const check of p11.data.people){
+        const match=mergedDeep.find(d=>d.name?.toLowerCase()===check.name?.toLowerCase());
+        if(match){
+          match.confidence=Math.max(10,Math.min(99,(match.confidence||50)+(check.confidence_adjustment||0)));
+          if(check.verified_facts?.length)match._verified_facts=check.verified_facts;
+          if(check.flagged_issues?.length)match._flagged_issues=check.flagged_issues;
+          if(check.corrections?.length)match._corrections=check.corrections;
+        }
+      }
+    }
+
+    /* ── PASS 15: Iterative re-identification loop ── */
+    US(14);$('spinnerText').textContent=`Pass 15/${T}: Iterative re-identification loop\u2026`;
+
+    const CONF_THRESHOLD=75;
+    const MAX_ITERATIONS=3;
+    let iteration=0;
+    let lowConf=mergedDeep.filter(p=>(p.confidence||0)<CONF_THRESHOLD);
+
+    while(lowConf.length>0&&iteration<MAX_ITERATIONS){
+      iteration++;
+      $('spinnerText').textContent=`Pass 15/${T}: Re-identification attempt ${iteration}/${MAX_ITERATIONS} (${lowConf.length} unresolved)\u2026`;
+
+      const lowList=lowConf.map(p=>`- "${p.name}" (${p.confidence}%): Evidence=${p.evidence||'N/A'}, Role=${p.role||'N/A'}, Org=${p.organization||'N/A'}, Alternates=${(p.alternate_candidates||[]).join(',')||'None'}`).join('\n');
+      const origDescs=mergedPeople.map((p,i)=>`Person ${i+1}: ${p.appearance||'N/A'}, ${p.clothing||'N/A'}, ${p.nearby_text||'None'}`).join('\n');
+
+      const strategies=[
+        'Try nicknames, maiden names, married names, stage names, pen names, professional names, birth names.',
+        'Consider local/regional prominence — not everyone is globally famous. Check local newspapers, community organizations, school districts, small businesses.',
+        'Try reverse image search thinking — what would someone searching for this person type? Try those search terms.',
+        'Consider they might be related to someone famous — family members, spouses, children, siblings, assistants, bodyguards, drivers.',
+        'Check if they\'re behind-the-scenes: producers, writers, crew members, coaches, trainers, agents, managers, publicists, stylists.',
+        'Try occupation-based searching: if wearing a uniform/badge, search that specific organization\'s roster.'
+      ];
+
+      const reIdResult=await puterChatAll(`CRITICAL: These people MUST be identified. Use EVERY strategy available. Do NOT give up. Try unconventional approaches.${contextNote}\n\nScene: ${summary}\nAll visible text: ${visibleText}\nLogos: ${logos}\nOriginal descriptions:\n${origDescs}\n\nUNIDENTIFIED/LOW CONFIDENCE:\n${lowList}\n\nSTRATEGIES TO TRY:\n${strategies.join('\n')}\n\nAdditional: Search people-finder databases, yearbook archives, reunion websites, company staff pages, event attendee lists, conference programs, award ceremony programs, charity gala guest lists, wedding party lists, funeral programs, graduation programs.\n\nReply ONLY JSON:\n{"people":[{"name":"...","confidence":80,"role":"...","bio":"4-6 sentences","key_facts":["..."],"evidence":"detailed evidence","search_strategy":"what approach found them"}]}`,{max_tokens:3000});
+
+      /* Merge best result from all models */
+      for(const result of reIdResult){
+        if(!result?.data?.people)continue;
+        for(const refined of result.data.people){
+          const match=mergedDeep.find(d=>d.name?.toLowerCase()===refined.name?.toLowerCase())||
+            mergedDeep.find(d=>lowConf.some(l=>l.name?.toLowerCase()===d.name?.toLowerCase()));
+          if(match&&(refined.confidence||0)>(match.confidence||0)){
+            match.name=refined.name;match.confidence=refined.confidence;
+            match.role=refined.role||match.role;
+            match.bio=refined.bio||match.bio;match.key_facts=refined.key_facts||match.key_facts;
+            match.evidence=refined.evidence||match.evidence;
+            match._search_strategy=refined.search_strategy||match._search_strategy;
+          }
+        }
+      }
+
+      lowConf=mergedDeep.filter(p=>(p.confidence||0)<CONF_THRESHOLD);
+    }
+
+    /* ── PASS 16: Alternative strategies & lateral search ── */
+    US(15);$('spinnerText').textContent=`Pass 16/${T}: Alternative strategies & lateral search\u2026`;
+
+    const stillLow=mergedDeep.filter(p=>(p.confidence||0)<CONF_THRESHOLD);
+    if(stillLow.length>0){
+      const lateralList=stillLow.map(p=>`- "${p.name}" (${p.confidence}%): ${p.evidence||'N/A'}`).join('\n');
+      const p13=await puterChat(`LAST RESORT identification. These people remain unidentified after extensive searching. Try COMPLETELY DIFFERENT approaches:
+1. Search for the EVENT/LOCATION instead of the person — who attended this event? Who works at this location?
+2. Search for OTHER identified people in the image — who are THEIR associates, colleagues, family?
+3. Search for visible text, logos, uniforms — what organization is this? Get their full staff/member directory.
+4. Search for the clothing brands, accessories, jewelry — any custom/unique items that could identify someone?
+5. Search for the specific date/time of the event if determinable.
+6. Consider: security detail, event staff, venue employees, photographers, reporters covering the event.
+7. Search for group photos from the same event — are any of these people tagged in other photos?${contextNote}
+
+Scene: ${summary}\nText: ${visibleText}\nLogos: ${logos}
+
+STILL UNIDENTIFIED:\n${lateralList}
+
+Reply ONLY JSON:\n{"people":[{"name":"...","confidence":70,"role":"...","bio":"...","key_facts":["..."],"evidence":"...","search_strategy":"..."}]}`,{models:ALL_MODELS,max_tokens:3000});
+
+      if(p13?.data?.people){
+        for(const alt of p13.data.people){
+          const match=mergedDeep.find(d=>d.name?.toLowerCase()===alt.name?.toLowerCase())||
+            mergedDeep.find(d=>stillLow.some(l=>l.name?.toLowerCase()===d.name?.toLowerCase()));
+          if(match&&(alt.confidence||0)>(match.confidence||0)){
+            match.name=alt.name;match.confidence=alt.confidence;
+            match.role=alt.role||match.role;match.bio=alt.bio||match.bio;
+            match.key_facts=alt.key_facts||match.key_facts;
+            match.evidence=alt.evidence||match.evidence;
+            match._search_strategy=alt.search_strategy||'lateral search';
+          }
+        }
+      }
+    }
+
+    /* ── PASS 17: Image re-verification & visual matching ── */
+    US(16);$('spinnerText').textContent=`Pass 17/${T}: Image re-verification & visual matching\u2026`;
+
+    /* Re-send image one final time with ALL accumulated knowledge for best possible match */
+    const finalReVerify=mergedDeep.filter(p=>(p.confidence||0)<85);
+    if(finalReVerify.length>0){
+      const reVerifyList=finalReVerify.map(p=>`- "${p.name}" (${p.confidence}%): ${p.role||'?'}, ${p.evidence||'N/A'}`).join('\n');
+      const imgVerifyResults=await puterChatAll([
+        {role:'system',content:`FINAL IMAGE VERIFICATION. Look at this image one more time with fresh eyes. You have accumulated context from extensive research. For each person listed below, look at them in the image and answer: Is this identification correct? Do their facial features, age, and appearance match? Are there ANY visual clues we missed — text on clothing, pins, lanyards, background details, reflections, partially visible text, phone screens, documents in hand, name badges at angles? Think like every image search engine combined: Google Images, TinEye, Yandex Images, PimEyes, Getty Images, Shutterstock, photo agency databases, press photo archives, yearbook photo databases, social media profile picture matching. What would a facial recognition system identify from the distinctive features of each face?${contextNote}\n\nPEOPLE TO VERIFY:\n${reVerifyList}\n\nScene: ${summary}\nKnown text: ${visibleText}\n\nReply ONLY JSON:\n{"people":[{"name":"...","confidence":85,"visual_confirmation":"yes/no/uncertain","facial_match_details":"specific facial features that confirm identity","missed_visual_clues":"anything new found in the image","revised_identity":"if wrong, who is it actually","evidence":"..."}]}`},
+        {role:'user',content:imageMsg}
+      ],{max_tokens:3000});
+
+      for(const ivr of imgVerifyResults){
+        if(!ivr?.data?.people)continue;
+        for(const ivp of ivr.data.people){
+          const match=mergedDeep.find(d=>d.name?.toLowerCase()===ivp.name?.toLowerCase())||
+            mergedDeep.find(d=>finalReVerify.some(f=>f.name?.toLowerCase()===d.name?.toLowerCase()));
+          if(match){
+            if(ivp.revised_identity&&ivp.revised_identity!=='N/A'&&ivp.revised_identity!==match.name){
+              match.alternate_candidates=[...(match.alternate_candidates||[]),match.name];
+              match.name=ivp.revised_identity;
+            }
+            if((ivp.confidence||0)>(match.confidence||0))match.confidence=Math.min(99,ivp.confidence);
+            if(ivp.missed_visual_clues&&ivp.missed_visual_clues!=='None'&&ivp.missed_visual_clues!=='N/A'){
+              match.evidence=(match.evidence||'')+' | Image re-verify: '+ivp.missed_visual_clues;
+            }
+            if(ivp.facial_match_details)match._visual_match=ivp.facial_match_details;
+          }
+        }
+      }
+    }
+
+    /* ── PASS 18: Kitchen sink — final exhaustive sweep ── */
+    US(17);$('spinnerText').textContent=`Pass 18/${T}: Kitchen sink final sweep\u2026`;
+
+    /* Run all 3 models in parallel for a final comprehensive check */
+    const kitchenSinkSummary=mergedDeep.map(p=>`"${p.name}" (${p.confidence}%): ${p.role||'?'}, ${p.organization||'?'}, evidence: ${(p.evidence||'').slice(0,100)}`).join('\n');
+    const kitchenResults=await puterChatAll(`FINAL EXHAUSTIVE CHECK. Review everything one last time. For each person, search ANY source not yet checked: personal websites/blogs, podcast guest appearances, webinar appearances, online course instructor profiles (Udemy, Coursera, Masterclass), book author pages (Amazon, Goodreads), Cameo profiles, Patreon pages, GoFundMe campaigns, Change.org petitions, voter guides, endorsement lists, charity boards, gala attendee lists, conference attendee lists, hackathon participants, competition results, award ceremony programs, yearbook dedications, memorial pages, tribute videos, fan wiki pages, fandom databases, convention appearances, autograph databases, celebrity net worth databases, height/weight databases, birth charts, ANYTHING.${contextNote}
+
+CURRENT IDENTIFICATIONS:\n${kitchenSinkSummary}\nScene: ${summary}
+
+For anyone below 80% confidence, try EVERYTHING. Reply ONLY JSON:\n{"people":[{"name":"...","confidence":85,"additional_info":"any new facts found","additional_sources":["where found"],"bio":"comprehensive 5-7 sentence bio","key_facts":["..."]}]}`,{max_tokens:4000});
+
+    for(const kr of kitchenResults){
+      if(!kr?.data?.people)continue;
+      for(const kp of kr.data.people){
+        const match=mergedDeep.find(d=>d.name?.toLowerCase()===kp.name?.toLowerCase());
+        if(match){
+          if((kp.confidence||0)>(match.confidence||0))match.confidence=Math.min(99,kp.confidence);
+          if(kp.bio&&(!match.bio||kp.bio.length>match.bio.length))match.bio=kp.bio;
+          if(kp.key_facts?.length&&(!match.key_facts?.length||kp.key_facts.length>match.key_facts.length))match.key_facts=kp.key_facts;
+          if(kp.additional_sources?.length)match.sources_found=[...new Set([...(match.sources_found||[]),...kp.additional_sources])];
+        }
+      }
+    }
+
+    /* ── PASS 19: Confidence calibration & final fact-check ── */
+    US(18);$('spinnerText').textContent=`Pass 19/${T}: Final confidence calibration\u2026`;
+
+    const finalCheckList=mergedDeep.map(p=>`"${p.name}" (${p.confidence}%): ${p.bio||p.role||'?'}`).join('\n');
+    const p15=await puterChat(`Final confidence calibration. For each person, assess if the confidence score accurately reflects certainty. Consider: is the name definitely correct? Are there enough corroborating sources? Could there be a mix-up with someone else? Adjust confidence to be honest and accurate.${contextNote}\n\n${finalCheckList}\n\nReply ONLY JSON:\n{"people":[{"name":"...","final_confidence":85,"confidence_reasoning":"why this score","verified_facts":["..."],"remaining_uncertainties":["..."]}]}`,{models:['claude-sonnet-4-5-20250929','gpt-4o'],max_tokens:2000});
+
+    if(p15?.data?.people){
+      for(const fc of p15.data.people){
+        const match=mergedDeep.find(d=>d.name?.toLowerCase()===fc.name?.toLowerCase());
+        if(match){
+          if(fc.final_confidence!=null)match.confidence=Math.max(10,Math.min(99,fc.final_confidence));
+          if(fc.verified_facts?.length)match._verified_facts=[...new Set([...(match._verified_facts||[]),...fc.verified_facts])];
+          if(fc.remaining_uncertainties?.length)match._flagged_issues=[...new Set([...(match._flagged_issues||[]),...fc.remaining_uncertainties])];
+        }
+      }
+    }
+
+    /* ── PASS 20: Compile final comprehensive profiles ── */
+    US(19);$('spinnerText').textContent=`Pass 20/${T}: Compiling comprehensive profiles\u2026`;
+
+    const needBio=mergedDeep.filter(p=>!p.bio||p.bio.length<50);
+    if(needBio.length){
+      const namesList=needBio.map(p=>`"${p.name}" (${p.role||'unknown'}, ${p.organization||'unknown org'})`).join(', ');
+      const bioResult=await puterChat(`Write detailed 7-10 sentence biographies for: ${namesList}\n\nInclude: full name, who they are, what they\'re known for, career highlights, major achievements, education, personal life (if public), current status, interesting facts. Provide 6-8 key facts each.\n\nReply ONLY JSON:\n{"people":[{"name":"...","bio":"...","key_facts":["..."]}]}`,{models:ALL_MODELS,max_tokens:4000});
+      if(bioResult?.data?.people){
+        for(const bp of bioResult.data.people){
+          const match=mergedDeep.find(d=>d.name?.toLowerCase()===bp.name?.toLowerCase());
+          if(match){if(!match.bio||match.bio.length<50)match.bio=bp.bio;if(!match.key_facts?.length)match.key_facts=bp.key_facts}
+        }
+      }
+    }
+
+    const finalPeople=normalizePeople(mergedDeep);
+    const questions=await generateQuestions(finalPeople,summary,visibleText,scene);
+    US(20);return buildResult(finalPeople,p1merged,summary,questions);
+  }
+
+  /* ═══ Normalize people to standard format ═══ */
+  function normalizePeople(arr){
+    return arr.map(p=>({
+      name:p.name||'Unknown',confidence:p.confidence??50,role:p.role||'',info:p.bio||p.info||'',
+      key_facts:p.key_facts||[],evidence:p.evidence||'',
+      social_media:p.social_media||{},education:p.education||[],professional:p.professional||{},
+      news_mentions:p.news_mentions||[],sports_info:p.sports_info||{},government_info:p.government_info||{},
+      entertainment_info:p.entertainment_info||{},academic_info:p.academic_info||{},military_info:p.military_info||{},
+      legal_info:p.legal_info||{},tech_info:p.tech_info||{},creative_info:p.creative_info||{},
+      business_info:p.business_info||{},international_info:p.international_info||{},community_info:p.community_info||{},
+      genealogy_info:p.genealogy_info||{},historical_info:p.historical_info||{},misc_info:p.misc_info||{},
+      resume_info:p.resume_info||{},public_records:p.public_records||{},photo_info:p.photo_info||{},
+      sources_found:p.sources_found||[],alternate_candidates:p.alternate_candidates||[],
+      _models_agreed:p._models_agreed||[],_vote_count:p._vote_count||'',
+      _verified_facts:p._verified_facts||[],_flagged_issues:p._flagged_issues||[],
+      _search_strategy:p._search_strategy||''
+    }));
+  }
+
+  /* ═══ Research people (quick) ═══ */
+  async function researchPeople(identified){
+    if(!identified.length)return[];
+    const nl=identified.map(p=>`"${p.name}" (${p.role||'?'}, ${p.confidence}%)`).join(', ');
+    const r=await puterChat(`Provide bios for: ${nl}\nReply ONLY JSON: {"people":[{"name":"...","confidence":85,"role":"...","bio":"...","key_facts":["..."],"evidence":"..."}]}`,{models:ALL_MODELS,max_tokens:3000});
+    const fp=[];
+    if(r?.data?.people){for(let i=0;i<r.data.people.length;i++){const p=r.data.people[i],o=identified[i]||{};fp.push({name:p.name||o.name,confidence:p.confidence??o.confidence??50,role:p.role||o.role||'',info:p.bio||'',key_facts:p.key_facts||[],evidence:p.evidence||o.evidence||'',social_media:{},education:[],professional:{},news_mentions:[],sports_info:{},government_info:{},entertainment_info:{},academic_info:{},military_info:{},sources_found:[],alternate_candidates:[],_models_agreed:[],_vote_count:'',_verified_facts:[],_flagged_issues:[],_search_strategy:''})}}
+    if(!fp.length)for(const p of identified)fp.push({name:p.name,confidence:p.confidence||40,role:p.role||'',info:p.evidence||'',key_facts:[],evidence:p.evidence||'',social_media:{},education:[],professional:{},news_mentions:[],sports_info:{},government_info:{},entertainment_info:{},academic_info:{},military_info:{},sources_found:[],alternate_candidates:[],_models_agreed:[],_vote_count:'',_verified_facts:[],_flagged_issues:[],_search_strategy:''});
+    return fp;
+  }
+
+  /* ═══ Generate follow-up questions ═══ */
+  async function generateQuestions(fp,summary,visibleText,scene){
+    if(!fp.length)return[];
+    const ps=fp.map((p,i)=>`${i+1}. "${p.name}" (${p.role||'?'}, ${p.confidence}%)`).join('\n');
+    const lc=fp.filter(p=>p.confidence<70);
+    const r=await puterChat(`Generate 2-4 targeted follow-up questions to improve identification.\nScene: ${summary}\nPeople:\n${ps}\n${lc.length?'Low confidence: '+lc.map(p=>p.name).join(', '):''}\nText: ${visibleText||'None'}\nSetting: ${scene.setting||'Unknown'}\n\nReply ONLY JSON: {"questions":[{"question":"...","hint":"...","for_person":"..."}]}`,{models:['claude-sonnet-4-5-20250929','gpt-4o'],max_tokens:1000});
+    return r?.data?.questions||[];
+  }
+
+  function buildResult(fp,p1d,summary,q){
+    return{people:fp,locations:(p1d.locations_visible||p1d.locations||[]).map(l=>({name:l.name||'Unknown',confidence:l.confidence||50,info:l.info||''})),scene_summary:summary,questions:q};
+  }
+
+  /* ═══ Refinement ═══ */
+  async function refineWithAnswers(answers){
+    errorBox.classList.remove('visible');spinner.classList.add('active');
+    resultsContainer.innerHTML='';btnAnalyze.disabled=true;
+    const isUltra=searchDepth==='ultra',isDeep=searchDepth==='deep'||isUltra;
+    const cats=isUltra?ALL_CATS:getActiveCats();
+    setPass([{label:'Refining with your answers',status:'active'},...(isDeep?[{label:'Deep searching refined identities',status:''}]:[])]);
+    $('spinnerText').textContent='Refining\u2026';
+    try{
+      const ctx=getUserContext();
+      const at=answers.map(a=>`Q: ${a.question}\nA: ${a.answer}`).join('\n\n');
+      const pp=(lastResults?.people||[]).map((p,i)=>`${i+1}. "${p.name}" (${p.role||'?'}, ${p.confidence}%): ${p.evidence||'N/A'}`).join('\n');
+      const p1=lastPass1Data;
+      const vt=p1?(p1.all_visible_text||[]).join(', '):'';
+      const lg=p1?(p1.logos_and_emblems||[]).join(', '):'';
+      const sc=p1?.scene||{};const sm=p1?.scene_summary||lastResults?.scene_summary||'';
+
+      const rr=await puterChat(`Re-identify people using user's answers.${ctx?'\nContext: '+ctx:''}\nScene: ${sm}\nText: ${vt}\nLogos: ${lg}\n\nPrevious:\n${pp}\n\nUser answers:\n${at}\n\nReply ONLY JSON: {"people":[{"name":"...","confidence":90,"role":"...","evidence":"...","organization":"..."}],"scene_summary":"..."}`,{models:['claude-sonnet-4-5-20250929','gpt-4o'],max_tokens:3000});
+      if(!rr)throw new Error('Refinement failed.');
+      let refined=rr.data.people||[];
+
+      if(isDeep&&refined.length){
+        setPass([{label:'Refining with your answers',status:'done'},{label:'Deep searching refined identities',status:'active'}]);
+        $('spinnerText').textContent='Deep searching refined identities\u2026';
+        const si=buildSearchInstructions(cats);
+        const rl=refined.map(p=>`- "${p.name}" | ${p.role||'?'} | ${p.organization||'?'} | ${p.confidence}%`).join('\n');
+        const dr=await puterChat(`OSINT research. Exhaustive search.${ctx?'\nContext: '+ctx:''}\n\nPEOPLE:\n${rl}\nScene: ${rr.data.scene_summary||sm}\n\nCATEGORIES:\n${si}\n\nReply ONLY JSON:\n{"people":[{"name":"...","confidence":90,"role":"...","bio":"...","key_facts":["..."],"evidence":"...","social_media":{"twitter":"...","instagram":"...","linkedin":"...","facebook":"...","tiktok":"...","youtube":"..."},"education":[{"school":"...","degree":"...","year":"..."}],"professional":{"current_position":"...","employer":"...","previous_roles":["..."],"industry":"..."},"news_mentions":["..."],"sports_info":{"team":"...","position":"...","number":"...","stats":"..."},"government_info":{"title":"...","office":"...","party":"..."},"entertainment_info":{"known_for":"...","awards":["..."]},"academic_info":{"field":"...","publications":["..."]},"military_info":{"branch":"...","rank":"..."},"sources_found":[]}]}`,{models:ALL_MODELS,max_tokens:4000});
+        if(dr?.data?.people)refined=dr.data.people;
+      }
+
+      const data={people:normalizePeople(refined),locations:lastResults?.locations||[],scene_summary:rr.data.scene_summary||sm,questions:[]};
+      lastResults=data;renderResults(data);
+    }catch(err){showError(err.message||'Refinement failed.')}
+    finally{spinner.classList.remove('active');btnAnalyze.disabled=false}
+  }
+
+  /* ═══ Other providers ═══ */
+  async function callOpenAI(key){
+    const res=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify({model:'gpt-4o',max_tokens:2000,messages:[{role:'system',content:simplePrompt},{role:'user',content:[{type:'text',text:`Analyze this image. ${getUserContext()?'Context: '+getUserContext():''}`},{type:'image_url',image_url:{url:`data:${mimeType};base64,${base64Data}`}}]}]})});
+    if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`OpenAI error ${res.status}`)}
+    return parseJSON((await res.json()).choices[0].message.content);
+  }
+  async function callGemini(key){
+    const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system_instruction:{parts:[{text:simplePrompt}]},contents:[{parts:[{text:`Analyze this image. ${getUserContext()?'Context: '+getUserContext():''}`},{inline_data:{mime_type:mimeType,data:base64Data}}]}],generationConfig:{temperature:0.2,maxOutputTokens:2000}})});
+    if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`Gemini error ${res.status}`)}
+    return parseJSON((await res.json()).candidates[0].content.parts[0].text);
+  }
+  async function callClaude(key){
+    const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-5-20250929',max_tokens:2000,system:simplePrompt,messages:[{role:'user',content:[{type:'text',text:`Analyze this image. ${getUserContext()?'Context: '+getUserContext():''}`},{type:'image',source:{type:'base64',media_type:mimeType,data:base64Data}}]}]})});
+    if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`Claude error ${res.status}`)}
+    return parseJSON((await res.json()).content[0].text);
+  }
+  function parseJSON(raw){let s=raw.trim().replace(/^```(?:json)?\s*/i,'').replace(/\s*```$/i,'');const m=s.match(/\{[\s\S]*\}/);return JSON.parse(m?m[0]:s)}
+
+  /* ═══ Render ═══ */
+  function renderResults(data){
+    let html='';
+    if(data.scene_summary)html+=`<div style="margin-bottom:20px;padding:12px 16px;background:var(--surface2);border-radius:10px;font-size:.9rem;color:var(--text-dim);border-left:3px solid var(--accent)"><strong style="color:var(--text)">Scene:</strong> ${esc(data.scene_summary)}</div>`;
+
+    /* No AI metadata display */
+    if(data._noai){
+      const m=data._meta||{};
+      const f=data._forensics||{};
+      html+=`<div class="entity-group"><div class="entity-group-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4M12 8h.01"/></svg> Image Metadata (No AI)</div>`;
+      html+=`<div class="meta-grid">`;
+
+      /* File info */
+      html+=`<div class="meta-card"><div class="mc-label">File</div><div class="mc-value">${esc(m.file_name||'')}</div><div style="font-size:.74rem;color:var(--text-dim);margin-top:2px">${esc(m.file_size||'')} &bull; ${esc(m.file_type||'')}</div></div>`;
+      html+=`<div class="meta-card"><div class="mc-label">Resolution</div><div class="mc-value">${m.width||'?'}x${m.height||'?'}</div><div style="font-size:.74rem;color:var(--text-dim);margin-top:2px">${esc(m.megapixels||'')} &bull; ${esc(f.resolution_class||'')} &bull; ${f.is_portrait?'Portrait':f.is_landscape?(f.is_panoramic?'Panoramic':'Landscape'):'Square'}</div></div>`;
+
+      /* Camera */
+      if(m.camera_make||m.camera_model)html+=`<div class="meta-card"><div class="mc-label">Camera</div><div class="mc-value">${esc((m.camera_make||'')+' '+(m.camera_model||''))}</div>${m.lens?`<div style="font-size:.74rem;color:var(--text-dim);margin-top:2px">Lens: ${esc(m.lens)}</div>`:''}</div>`;
+      /* Exposure */
+      if(m.exposure||m.aperture||m.iso)html+=`<div class="meta-card"><div class="mc-label">Exposure</div><div class="mc-value">${[m.exposure,m.aperture,m.iso].filter(Boolean).join(' &bull; ')}</div>${m.focal_length?`<div style="font-size:.74rem;color:var(--text-dim);margin-top:2px">${esc(m.focal_length)} &bull; Flash: ${esc(m.flash||'Unknown')}</div>`:''}</div>`;
+      /* Date */
+      if(m.date_taken||m.date_modified)html+=`<div class="meta-card"><div class="mc-label">Date Taken</div><div class="mc-value">${esc(m.date_taken||m.date_modified||'')}</div>${f.time_of_day?`<div style="font-size:.74rem;color:var(--text-dim);margin-top:2px">${esc(f.day_of_week||'')} &bull; ${esc(f.time_of_day||'')}</div>`:''}</div>`;
+      /* GPS */
+      if(m.gps)html+=`<div class="meta-card"><div class="mc-label">GPS Location</div><div class="mc-value"><a class="map-link" href="https://www.openstreetmap.org/?mlat=${m._lat}&mlon=${m._lon}#map=16/${m._lat}/${m._lon}" target="_blank">${esc(m.gps)}</a></div>${m.altitude?`<div style="font-size:.74rem;color:var(--text-dim);margin-top:2px">Altitude: ${esc(m.altitude)}</div>`:''}</div>`;
+      /* Location name */
+      if(m.location_name)html+=`<div class="meta-card" style="grid-column:span 2"><div class="mc-label">Location (Geocoded)</div><div class="mc-value">${esc(m.city||'')}${m.state?', '+esc(m.state):''}${m.country?', '+esc(m.country):''}</div><div style="font-size:.74rem;color:var(--text-dim);margin-top:2px">${esc(m.location_name)}</div></div>`;
+      /* Software */
+      if(m.software)html+=`<div class="meta-card"><div class="mc-label">Software</div><div class="mc-value">${esc(m.software)}</div></div>`;
+      /* Copyright / Artist */
+      if(m.copyright||m.artist)html+=`<div class="meta-card"><div class="mc-label">Author / Copyright</div><div class="mc-value">${esc(m.artist||'')}${m.copyright?' &bull; &copy; '+esc(m.copyright):''}</div></div>`;
+      /* Credit / Source */
+      if(m.credit||m.source)html+=`<div class="meta-card"><div class="mc-label">Credit / Source</div><div class="mc-value">${esc(m.credit||'')}${m.source?' &bull; '+esc(m.source):''}</div></div>`;
+      /* IPTC text fields */
+      if(m.headline)html+=`<div class="meta-card" style="grid-column:span 2"><div class="mc-label">Headline</div><div class="mc-value">${esc(m.headline)}</div></div>`;
+      if(m.caption)html+=`<div class="meta-card" style="grid-column:span 2"><div class="mc-label">Caption</div><div class="mc-value">${esc(m.caption)}</div></div>`;
+      if(m.description)html+=`<div class="meta-card" style="grid-column:span 2"><div class="mc-label">Description</div><div class="mc-value">${esc(m.description)}</div></div>`;
+      if(m.keywords)html+=`<div class="meta-card" style="grid-column:span 2"><div class="mc-label">Keywords</div><div class="mc-value">${esc(m.keywords)}</div></div>`;
+      /* Image type */
+      if(m.inferred_type)html+=`<div class="meta-card" style="grid-column:span 2"><div class="mc-label">Inferred Type</div><div class="mc-value">${esc(m.inferred_type)}</div></div>`;
+
+      html+=`</div>`; /* close meta-grid */
+
+      /* Color palette */
+      if(m._dominant_colors?.length){
+        html+=`<div class="entity-card"><div class="entity-header"><span class="entity-name">Color Palette</span></div><div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:8px">`;
+        for(const c of m._dominant_colors){
+          html+=`<div style="text-align:center"><div class="color-swatch" style="width:40px;height:40px;background:${c.rgb}"></div><div style="font-size:.68rem;color:var(--text-dim);margin-top:2px">${esc(c.hex)}<br>${c.pct}%</div></div>`;
+        }
+        html+=`</div><div style="margin-top:8px;font-size:.78rem;color:var(--text-dim)">Average brightness: ${esc(m.avg_brightness||'')}</div></div>`;
+      }
+
+      /* Forensics summary */
+      html+=`<div class="entity-card"><div class="entity-header"><span class="entity-name">Image Forensics</span></div><div class="entity-details" style="margin-top:6px">`;
+      html+=`<div class="entity-detail"><span class="entity-detail-label">EXIF data</span><span class="entity-detail-value">${f.has_exif?'Present':'Not found (stripped or screenshot)'}</span></div>`;
+      html+=`<div class="entity-detail"><span class="entity-detail-label">GPS</span><span class="entity-detail-value">${f.has_gps?'Embedded':'Not found'}</span></div>`;
+      html+=`<div class="entity-detail"><span class="entity-detail-label">Edit software</span><span class="entity-detail-value">${f.has_editing_software?esc(m.software):'None detected'}</span></div>`;
+      html+=`<div class="entity-detail"><span class="entity-detail-label">Copyright</span><span class="entity-detail-value">${f.has_copyright?'Yes':'None'}</span></div>`;
+      html+=`<div class="entity-detail"><span class="entity-detail-label">IPTC/Press</span><span class="entity-detail-value">${f.has_iptc?'Has press/editorial metadata':'None'}</span></div>`;
+      html+=`</div></div>`;
+
+      html+=`</div>`; /* close entity-group */
+    }
+
+    if(data.people?.length)html+=`<div class="entity-group"><div class="entity-group-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>People Identified (${data.people.length})</div>${data.people.map(p=>personCard(p)).join('')}</div>`;
+    if(data.locations?.length)html+=`<div class="entity-group"><div class="entity-group-title"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 1 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>Locations (${data.locations.length})</div>${data.locations.map(l=>locationCard(l)).join('')}</div>`;
+    if(!data.people?.length&&!data.locations?.length)html+='<div class="no-results">No people or locations identified.</div>';
+
+    if(data.questions?.length){
+      html+=`<div class="followup-section"><h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M9 9a3 3 0 115.12 2.12c-.58.59-1.62 1.05-2.12 1.88"/><circle cx="12" cy="17" r=".5"/></svg> Help Improve Results</h3><div class="subtitle">Answer any questions to refine identification.</div>${data.questions.map((q,i)=>`<div class="followup-q"><label>${esc(q.question)}</label><input type="text" id="fq_${i}" placeholder="Type your answer...">${q.hint?`<div class="q-hint">Hint: ${esc(q.hint)}</div>`:''}${q.for_person&&q.for_person!=='general'?`<div class="q-hint">For: ${esc(q.for_person)}</div>`:''}</div>`).join('')}<div class="followup-actions"><button class="btn btn-orange" id="btnRefine">Refine with My Answers</button><button class="btn btn-primary" id="btnReanalyze">Re-analyze from Scratch</button></div></div>`;
+    }else if(data.people?.length){
+      html+=`<div class="followup-section"><h3><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="var(--orange)" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><path d="M9 9a3 3 0 115.12 2.12c-.58.59-1.62 1.05-2.12 1.88"/><circle cx="12" cy="17" r=".5"/></svg> Know More?</h3><div class="subtitle">Add details in Context Hints and re-analyze.</div><div class="followup-actions"><button class="btn btn-primary" id="btnReanalyze">Re-analyze with Context</button></div></div>`;
+    }
+    resultsContainer.innerHTML=html;
+    const br=document.getElementById('btnRefine');
+    if(br)br.addEventListener('click',()=>{const a=[];(data.questions||[]).forEach((q,i)=>{const v=document.getElementById(`fq_${i}`)?.value?.trim();if(v)a.push({question:q.question,answer:v})});if(!a.length)return showError('Answer at least one question.');refineWithAnswers(a)});
+    const ba=document.getElementById('btnReanalyze');
+    if(ba)ba.addEventListener('click',()=>analyze());
+  }
+
+  function personCard(p){
+    const conf=Math.max(0,Math.min(100,p.confidence||0));
+    const level=conf>=75?'high':conf>=45?'med':'low';
+
+    let factsHtml='';
+    if(p.key_facts?.length)factsHtml=`<div class="entity-details">${p.key_facts.map(f=>`<div class="entity-detail"><span class="entity-detail-label">\u2022</span><span class="entity-detail-value">${esc(f)}</span></div>`).join('')}</div>`;
+
+    let evidenceHtml='';
+    if(p.evidence)evidenceHtml=`<div class="entity-evidence"><strong>Evidence:</strong> ${esc(p.evidence)}</div>`;
+
+    /* Model consensus badge */
+    let modelBadge='';
+    if(p._vote_count&&p._vote_count!=='0/0')modelBadge=`<span class="model-badge">${esc(p._vote_count)} models agree</span>`;
+
+    /* Source tags */
+    const srcMap={social:'Social Media',school:'Education',professional:'Professional',news:'News',sports:'Sports',government:'Government',entertainment:'Entertainment',academic:'Academic',military:'Military',legal:'Legal',realestate:'Business/RE',tech:'Tech',creative:'Creative Arts',international:'International',community:'Community',genealogy:'Genealogy',photo:'Photo/Image',public_records:'Public Records',resume:'Resume/CV'};
+    const clsMap={social:'src-social',school:'src-school',professional:'src-professional',news:'src-news',sports:'src-sports',government:'src-government',entertainment:'src-entertainment',academic:'src-academic',military:'src-military',legal:'src-legal',realestate:'src-realestate',tech:'src-tech',creative:'src-creative',international:'src-international',community:'src-community',genealogy:'src-genealogy',photo:'src-photo',public_records:'src-government',resume:'src-professional'};
+    let sourceHtml='';
+    const sources=p.sources_found||[];
+    if(sources.length)sourceHtml=`<div class="source-tags">${sources.map(s=>`<span class="src-tag ${clsMap[s]||'src-web'}">${srcMap[s]||s}</span>`).join('')}</div>`;
+
+    let deepHtml='';
+
+    /* Social Media */
+    const sm=p.social_media||{};
+    const sme=Object.entries(sm).filter(([,v])=>v&&v!=='null'&&v!=='N/A'&&v!=='none'&&v!=='None');
+    if(sme.length)deepHtml+=`<div class="deep-section"><div class="ds-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="2"><path d="M18 2h-3a5 5 0 00-5 5v3H7v4h3v8h4v-8h3l1-4h-4V7a1 1 0 011-1h3z"/></svg> Social Media</div>${sme.map(([k,v])=>`<div class="ds-item"><strong>${k.charAt(0).toUpperCase()+k.slice(1)}:</strong> ${esc(String(v))}</div>`).join('')}</div>`;
+
+    /* Education */
+    const edu=p.education||[];
+    if(edu.length)deepHtml+=`<div class="deep-section"><div class="ds-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2"><path d="M22 10v6M2 10l10-5 10 5-10 5z"/><path d="M6 12v5c0 2 3 3 6 3s6-1 6-3v-5"/></svg> Education</div>${edu.map(e=>`<div class="ds-item"><strong>${esc(e.school||'')}</strong>${e.degree?' \u2014 '+esc(e.degree):''}${e.year?' ('+esc(e.year)+')':''}${e.notes?' \u2014 '+esc(e.notes):''}</div>`).join('')}</div>`;
+
+    /* Professional */
+    const pr=p.professional||{};
+    if(pr.current_position||pr.employer||pr.previous_roles?.length)deepHtml+=`<div class="deep-section"><div class="ds-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg> Professional</div>${pr.current_position?`<div class="ds-item"><strong>Position:</strong> ${esc(pr.current_position)}</div>`:''}${pr.employer?`<div class="ds-item"><strong>Employer:</strong> ${esc(pr.employer)}</div>`:''}${pr.industry?`<div class="ds-item"><strong>Industry:</strong> ${esc(pr.industry)}</div>`:''}${pr.previous_roles?.length?`<div class="ds-item"><strong>Previous:</strong> ${pr.previous_roles.map(r=>esc(r)).join(', ')}</div>`:''}</div>`;
+
+    /* News */
+    const news=p.news_mentions||[];
+    if(news.length)deepHtml+=`<div class="deep-section"><div class="ds-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M4 22h16a2 2 0 002-2V4a2 2 0 00-2-2H8a2 2 0 00-2 2v16a2 2 0 01-2 2zm0 0a2 2 0 01-2-2v-9c0-1.1.9-2 2-2h2"/></svg> News</div>${news.map(n=>`<div class="ds-item">\u2022 ${esc(n)}</div>`).join('')}</div>`;
+
+    /* Entertainment */
+    const ent=p.entertainment_info||{};
+    if(ent.known_for||ent.awards?.length||ent.filmography?.length)deepHtml+=`<div class="deep-section"><div class="ds-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26"/></svg> Entertainment</div>${ent.known_for?`<div class="ds-item"><strong>Known for:</strong> ${esc(ent.known_for)}</div>`:''}${ent.awards?.length?`<div class="ds-item"><strong>Awards:</strong> ${ent.awards.map(a=>esc(a)).join(', ')}</div>`:''}${ent.filmography?.length?`<div class="ds-item"><strong>Filmography:</strong> ${ent.filmography.map(f=>esc(f)).join(', ')}</div>`:''}${ent.discography?.length?`<div class="ds-item"><strong>Discography:</strong> ${ent.discography.map(d=>esc(d)).join(', ')}</div>`:''}</div>`;
+
+    /* Academic */
+    const ac=p.academic_info||{};
+    if(ac.field||ac.publications?.length||ac.institution)deepHtml+=`<div class="deep-section"><div class="ds-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2"><path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/></svg> Academic</div>${ac.field?`<div class="ds-item"><strong>Field:</strong> ${esc(ac.field)}</div>`:''}${ac.institution?`<div class="ds-item"><strong>Institution:</strong> ${esc(ac.institution)}</div>`:''}${ac.publications?.length?`<div class="ds-item"><strong>Publications:</strong> ${ac.publications.map(p=>esc(p)).join('; ')}</div>`:''}</div>`;
+
+    /* Sports */
+    const sp=p.sports_info||{};
+    if(sp.team||sp.position||sp.stats)deepHtml+=`<div class="deep-section"><div class="ds-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a15 15 0 014 10 15 15 0 01-4 10 15 15 0 01-4-10 15 15 0 014-10z"/></svg> Sports</div>${sp.team?`<div class="ds-item"><strong>Team:</strong> ${esc(sp.team)}</div>`:''}${sp.position?`<div class="ds-item"><strong>Position:</strong> ${esc(sp.position)}</div>`:''}${sp.number?`<div class="ds-item"><strong>Number:</strong> #${esc(sp.number)}</div>`:''}${sp.stats?`<div class="ds-item"><strong>Stats:</strong> ${esc(sp.stats)}</div>`:''}${sp.draft?`<div class="ds-item"><strong>Draft:</strong> ${esc(sp.draft)}</div>`:''}</div>`;
+
+    /* Government */
+    const gov=p.government_info||{};
+    if(gov.title||gov.office||gov.party)deepHtml+=`<div class="deep-section"><div class="ds-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><path d="M3 21h18M3 10h18M5 6l7-3 7 3M4 10v11M20 10v11M8 14v3M12 14v3M16 14v3"/></svg> Government</div>${gov.title?`<div class="ds-item"><strong>Title:</strong> ${esc(gov.title)}</div>`:''}${gov.office?`<div class="ds-item"><strong>Office:</strong> ${esc(gov.office)}</div>`:''}${gov.party?`<div class="ds-item"><strong>Party:</strong> ${esc(gov.party)}</div>`:''}${gov.district?`<div class="ds-item"><strong>District:</strong> ${esc(gov.district)}</div>`:''}</div>`;
+
+    /* Military */
+    const mil=p.military_info||{};
+    if(mil.branch||mil.rank)deepHtml+=`<div class="deep-section"><div class="ds-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg> Military</div>${mil.branch?`<div class="ds-item"><strong>Branch:</strong> ${esc(mil.branch)}</div>`:''}${mil.rank?`<div class="ds-item"><strong>Rank:</strong> ${esc(mil.rank)}</div>`:''}${mil.service_years?`<div class="ds-item"><strong>Service:</strong> ${esc(mil.service_years)}</div>`:''}${mil.unit?`<div class="ds-item"><strong>Unit:</strong> ${esc(mil.unit)}</div>`:''}${mil.decorations?.length?`<div class="ds-item"><strong>Decorations:</strong> ${mil.decorations.map(d=>esc(d)).join(', ')}</div>`:''}</div>`;
+
+    /* Legal */
+    const leg=p.legal_info||{};
+    if(leg.cases?.length||leg.bar_membership||leg.law_firm||leg.judgeship)deepHtml+=`<div class="deep-section"><div class="ds-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5M2 12l10 5 10-5"/></svg> Legal</div>${leg.bar_membership?`<div class="ds-item"><strong>Bar:</strong> ${esc(leg.bar_membership)}</div>`:''}${leg.law_firm?`<div class="ds-item"><strong>Firm:</strong> ${esc(leg.law_firm)}</div>`:''}${leg.judgeship?`<div class="ds-item"><strong>Judgeship:</strong> ${esc(leg.judgeship)}</div>`:''}${leg.cases?.length?`<div class="ds-item"><strong>Cases:</strong> ${leg.cases.map(c=>esc(c)).join('; ')}</div>`:''}${leg.patents?.length?`<div class="ds-item"><strong>Patents:</strong> ${leg.patents.map(p=>esc(p)).join('; ')}</div>`:''}</div>`;
+
+    /* Tech */
+    const tech=p.tech_info||{};
+    if(tech.github||tech.stackoverflow||tech.repos?.length||tech.companies_founded?.length)deepHtml+=`<div class="deep-section"><div class="ds-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M16 18l6-6-6-6M8 6l-6 6 6 6"/></svg> Tech/Developer</div>${tech.github?`<div class="ds-item"><strong>GitHub:</strong> ${esc(tech.github)}</div>`:''}${tech.stackoverflow?`<div class="ds-item"><strong>StackOverflow:</strong> ${esc(tech.stackoverflow)}</div>`:''}${tech.repos?.length?`<div class="ds-item"><strong>Notable Repos:</strong> ${tech.repos.map(r=>esc(r)).join(', ')}</div>`:''}${tech.languages?.length?`<div class="ds-item"><strong>Languages:</strong> ${tech.languages.map(l=>esc(l)).join(', ')}</div>`:''}${tech.companies_founded?.length?`<div class="ds-item"><strong>Founded:</strong> ${tech.companies_founded.map(c=>esc(c)).join(', ')}</div>`:''}${tech.open_source?.length?`<div class="ds-item"><strong>Open Source:</strong> ${tech.open_source.map(o=>esc(o)).join(', ')}</div>`:''}</div>`;
+
+    /* Creative Arts */
+    const cre=p.creative_info||{};
+    if(cre.medium||cre.galleries?.length||cre.exhibitions?.length||cre.portfolio)deepHtml+=`<div class="deep-section"><div class="ds-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--pink)" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg> Creative Arts</div>${cre.medium?`<div class="ds-item"><strong>Medium:</strong> ${esc(cre.medium)}</div>`:''}${cre.galleries?.length?`<div class="ds-item"><strong>Galleries:</strong> ${cre.galleries.map(g=>esc(g)).join(', ')}</div>`:''}${cre.exhibitions?.length?`<div class="ds-item"><strong>Exhibitions:</strong> ${cre.exhibitions.map(e=>esc(e)).join(', ')}</div>`:''}${cre.collections?.length?`<div class="ds-item"><strong>Collections:</strong> ${cre.collections.map(c=>esc(c)).join(', ')}</div>`:''}${cre.awards?.length?`<div class="ds-item"><strong>Awards:</strong> ${cre.awards.map(a=>esc(a)).join(', ')}</div>`:''}${cre.portfolio?`<div class="ds-item"><strong>Portfolio:</strong> ${esc(cre.portfolio)}</div>`:''}</div>`;
+
+    /* Business */
+    const biz=p.business_info||{};
+    if(biz.companies?.length||biz.sec_filings?.length||biz.property_owned?.length||biz.net_worth_est)deepHtml+=`<div class="deep-section"><div class="ds-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--amber)" stroke-width="2"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg> Business/Real Estate</div>${biz.companies?.length?`<div class="ds-item"><strong>Companies:</strong> ${biz.companies.map(c=>esc(c)).join(', ')}</div>`:''}${biz.sec_filings?.length?`<div class="ds-item"><strong>SEC Filings:</strong> ${biz.sec_filings.map(s=>esc(s)).join('; ')}</div>`:''}${biz.property_owned?.length?`<div class="ds-item"><strong>Property:</strong> ${biz.property_owned.map(p=>esc(p)).join('; ')}</div>`:''}${biz.trademarks?.length?`<div class="ds-item"><strong>Trademarks:</strong> ${biz.trademarks.map(t=>esc(t)).join(', ')}</div>`:''}${biz.net_worth_est?`<div class="ds-item"><strong>Est. Net Worth:</strong> ${esc(biz.net_worth_est)}</div>`:''}</div>`;
+
+    /* International */
+    const intl=p.international_info||{};
+    if(intl.countries?.length||intl.international_orgs?.length||intl.diplomatic_roles?.length)deepHtml+=`<div class="deep-section"><div class="ds-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--cyan)" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 014 10 15 15 0 01-4 10 15 15 0 01-4-10A15 15 0 0112 2z"/></svg> International</div>${intl.countries?.length?`<div class="ds-item"><strong>Countries:</strong> ${intl.countries.map(c=>esc(c)).join(', ')}</div>`:''}${intl.international_orgs?.length?`<div class="ds-item"><strong>Orgs:</strong> ${intl.international_orgs.map(o=>esc(o)).join(', ')}</div>`:''}${intl.diplomatic_roles?.length?`<div class="ds-item"><strong>Diplomatic:</strong> ${intl.diplomatic_roles.map(d=>esc(d)).join('; ')}</div>`:''}${intl.foreign_awards?.length?`<div class="ds-item"><strong>Foreign Awards:</strong> ${intl.foreign_awards.map(a=>esc(a)).join(', ')}</div>`:''}</div>`;
+
+    /* Community */
+    const comm=p.community_info||{};
+    if(comm.local_orgs?.length||comm.volunteer_work?.length||comm.community_awards?.length||comm.clubs?.length)deepHtml+=`<div class="deep-section"><div class="ds-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg> Community/Local</div>${comm.local_orgs?.length?`<div class="ds-item"><strong>Organizations:</strong> ${comm.local_orgs.map(o=>esc(o)).join(', ')}</div>`:''}${comm.volunteer_work?.length?`<div class="ds-item"><strong>Volunteer:</strong> ${comm.volunteer_work.map(v=>esc(v)).join(', ')}</div>`:''}${comm.clubs?.length?`<div class="ds-item"><strong>Clubs:</strong> ${comm.clubs.map(c=>esc(c)).join(', ')}</div>`:''}${comm.community_awards?.length?`<div class="ds-item"><strong>Awards:</strong> ${comm.community_awards.map(a=>esc(a)).join(', ')}</div>`:''}${comm.church_membership?`<div class="ds-item"><strong>Church:</strong> ${esc(comm.church_membership)}</div>`:''}</div>`;
+
+    /* Genealogy/History */
+    const gen=p.genealogy_info||{};const hist=p.historical_info||{};const misc=p.misc_info||{};
+    if(gen.family_members?.length||gen.ancestry||hist.wikipedia||hist.notable_events?.length||misc.wikipedia_url)deepHtml+=`<div class="deep-section"><div class="ds-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2"><path d="M12 8V4H8"/><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M2 12h20"/></svg> Genealogy/History</div>${gen.ancestry?`<div class="ds-item"><strong>Ancestry:</strong> ${esc(gen.ancestry)}</div>`:''}${gen.family_members?.length?`<div class="ds-item"><strong>Family:</strong> ${gen.family_members.map(f=>esc(f)).join(', ')}</div>`:''}${gen.birth_records?`<div class="ds-item"><strong>Birth:</strong> ${esc(gen.birth_records)}</div>`:''}${gen.immigration_records?`<div class="ds-item"><strong>Immigration:</strong> ${esc(gen.immigration_records)}</div>`:''}${hist.wikipedia?`<div class="ds-item"><strong>Wikipedia:</strong> ${esc(hist.wikipedia)}</div>`:''}${hist.notable_events?.length?`<div class="ds-item"><strong>Notable Events:</strong> ${hist.notable_events.map(e=>esc(e)).join('; ')}</div>`:''}${misc.wikipedia_url?`<div class="ds-item"><strong>Wiki URL:</strong> ${esc(misc.wikipedia_url)}</div>`:''}</div>`;
+
+    /* Photo / Image Sources */
+    const pht=p.photo_info||{};
+    const phtHasData=pht.photo_search_summary||pht.profile_pictures?.platforms_with_photos?.length||pht.press_photos?.agencies?.length||pht.professional_headshots?.company_page||pht.yearbook_photos?.schools?.length||pht.event_photos?.events_photographed_at?.length||pht.video_thumbnails?.youtube_thumbnails?.length||pht.social_media_photos?.instagram_photos||pht.archived_photos?.wayback_machine?.length||pht.mugshot_databases?.found_in?.length||pht.stock_photos?.found_on?.length||pht.total_photo_sources_found;
+    if(phtHasData)deepHtml+=`<div class="deep-section"><div class="ds-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--gold)" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg> Photo & Image Sources</div>${pht.photo_search_summary?`<div class="ds-item"><strong>Summary:</strong> ${esc(pht.photo_search_summary)}</div>`:''}${pht.total_photo_sources_found?`<div class="ds-item"><strong>Total Sources Found:</strong> ${esc(String(pht.total_photo_sources_found))}</div>`:''}${pht.profile_pictures?.platforms_with_photos?.length?`<div class="ds-item"><strong>Profile Photos On:</strong> ${pht.profile_pictures.platforms_with_photos.map(p=>esc(p)).join(', ')}</div>`:''}${pht.profile_pictures?.primary_photo_source?`<div class="ds-item"><strong>Best Photo Source:</strong> ${esc(pht.profile_pictures.primary_photo_source)}</div>`:''}${pht.press_photos?.agencies?.length?`<div class="ds-item"><strong>Press Photo Agencies:</strong> ${pht.press_photos.agencies.map(a=>esc(a)).join(', ')}</div>`:''}${pht.press_photos?.red_carpet?.length?`<div class="ds-item"><strong>Red Carpet/Events:</strong> ${pht.press_photos.red_carpet.map(r=>esc(r)).join(', ')}</div>`:''}${pht.press_photos?.notable_photos?.length?`<div class="ds-item"><strong>Notable Photos:</strong> ${pht.press_photos.notable_photos.map(n=>esc(n)).join('; ')}</div>`:''}${pht.professional_headshots?.company_page?`<div class="ds-item"><strong>Company Headshot:</strong> ${esc(pht.professional_headshots.company_page)}</div>`:''}${pht.professional_headshots?.conference_speaker_photos?.length?`<div class="ds-item"><strong>Speaker Photos:</strong> ${pht.professional_headshots.conference_speaker_photos.map(c=>esc(c)).join(', ')}</div>`:''}${pht.professional_headshots?.author_photos?.length?`<div class="ds-item"><strong>Author Photos:</strong> ${pht.professional_headshots.author_photos.map(a=>esc(a)).join(', ')}</div>`:''}${pht.yearbook_photos?.schools?.length?`<div class="ds-item"><strong>Yearbook Photos:</strong> ${pht.yearbook_photos.schools.map(s=>esc(s)).join(', ')}${pht.yearbook_photos.years?.length?' ('+pht.yearbook_photos.years.map(y=>esc(y)).join(', ')+')':''}</div>`:''}${pht.event_photos?.events_photographed_at?.length?`<div class="ds-item"><strong>Event Photos:</strong> ${pht.event_photos.events_photographed_at.map(e=>esc(e)).join(', ')}</div>`:''}${pht.event_photos?.race_photos?.length?`<div class="ds-item"><strong>Race/Marathon Photos:</strong> ${pht.event_photos.race_photos.map(r=>esc(r)).join(', ')}</div>`:''}${pht.video_thumbnails?.youtube_thumbnails?.length?`<div class="ds-item"><strong>YouTube Thumbnails:</strong> ${pht.video_thumbnails.youtube_thumbnails.map(y=>esc(y)).join(', ')}</div>`:''}${pht.video_thumbnails?.podcast_thumbnails?.length?`<div class="ds-item"><strong>Podcast Thumbnails:</strong> ${pht.video_thumbnails.podcast_thumbnails.map(p=>esc(p)).join(', ')}</div>`:''}${pht.social_media_photos?.instagram_photos?`<div class="ds-item"><strong>Instagram:</strong> ${esc(pht.social_media_photos.instagram_photos)}</div>`:''}${pht.social_media_photos?.facebook_photos?`<div class="ds-item"><strong>Facebook:</strong> ${esc(pht.social_media_photos.facebook_photos)}</div>`:''}${pht.social_media_photos?.tagged_photos?`<div class="ds-item"><strong>Tagged By Others:</strong> ${esc(pht.social_media_photos.tagged_photos)}</div>`:''}${pht.archived_photos?.wayback_machine?.length?`<div class="ds-item"><strong>Archived (Wayback):</strong> ${pht.archived_photos.wayback_machine.map(w=>esc(w)).join(', ')}</div>`:''}${pht.archived_photos?.old_social_media?.length?`<div class="ds-item"><strong>Old Social Media:</strong> ${pht.archived_photos.old_social_media.map(o=>esc(o)).join(', ')}</div>`:''}${pht.mugshot_databases?.found_in?.length?`<div class="ds-item"><strong>Mugshot DBs:</strong> ${pht.mugshot_databases.found_in.map(m=>esc(m)).join(', ')}</div>`:''}${pht.stock_photos?.is_stock_model==='yes'?`<div class="ds-item"><strong>Stock Photo Model:</strong> Yes — found on ${(pht.stock_photos.found_on||[]).map(s=>esc(s)).join(', ')}</div>`:''}</div>`;
+
+    /* Resume / CV */
+    const res=p.resume_info||{};
+    if(res.headline||res.work_history?.length||res.skills?.length||res.career_summary)deepHtml+=`<div class="deep-section"><div class="ds-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--blue)" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><path d="M14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg> Resume / CV</div>${res.headline?`<div class="ds-item"><strong>Headline:</strong> ${esc(res.headline)}</div>`:''}${res.career_summary?`<div class="ds-item"><strong>Summary:</strong> ${esc(res.career_summary)}</div>`:''}${res.work_history?.length?res.work_history.map(w=>`<div class="ds-item"><strong>${esc(w.title||'')}</strong> at ${esc(w.company||'')}${w.dates?' ('+esc(w.dates)+')':''}${w.description?' — '+esc(w.description):''}</div>`).join(''):''}${res.skills?.length?`<div class="ds-item"><strong>Skills:</strong> ${res.skills.map(s=>esc(s)).join(', ')}</div>`:''}${res.certifications?.length?`<div class="ds-item"><strong>Certifications:</strong> ${res.certifications.map(c=>esc(c)).join(', ')}</div>`:''}${res.languages_spoken?.length?`<div class="ds-item"><strong>Languages:</strong> ${res.languages_spoken.map(l=>esc(l)).join(', ')}</div>`:''}${res.resume_sources?.length?`<div class="ds-item" style="font-size:.72rem;color:var(--text-dim)"><strong>Found on:</strong> ${res.resume_sources.map(s=>esc(s)).join(', ')}</div>`:''}</div>`;
+
+    /* Public Records */
+    const pub=p.public_records||{};
+    const pubHasData=pub.addresses?.length||pub.phone_numbers?.length||pub.email_addresses?.length||pub.relatives?.length||pub.property_records?.length||pub.court_records?.length||pub.online_presence?.length||pub.background_summary;
+    if(pubHasData)deepHtml+=`<div class="deep-section"><div class="ds-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--red)" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Public Records</div>${pub.background_summary?`<div class="ds-item"><strong>Summary:</strong> ${esc(pub.background_summary)}</div>`:''}${pub.age?`<div class="ds-item"><strong>Age:</strong> ${esc(pub.age)}</div>`:''}${pub.addresses?.length?`<div class="ds-item"><strong>Addresses:</strong> ${pub.addresses.map(a=>esc(a)).join('; ')}</div>`:''}${pub.relatives?.length?`<div class="ds-item"><strong>Relatives:</strong> ${pub.relatives.map(r=>esc(r)).join(', ')}</div>`:''}${pub.property_records?.length?`<div class="ds-item"><strong>Property:</strong> ${pub.property_records.map(p=>esc(p)).join('; ')}</div>`:''}${pub.court_records?.length?`<div class="ds-item"><strong>Court Records:</strong> ${pub.court_records.map(c=>esc(c)).join('; ')}</div>`:''}${pub.business_filings?.length?`<div class="ds-item"><strong>Business Filings:</strong> ${pub.business_filings.map(b=>esc(b)).join('; ')}</div>`:''}${pub.licenses?.length?`<div class="ds-item"><strong>Licenses:</strong> ${pub.licenses.map(l=>esc(l)).join(', ')}</div>`:''}${pub.voter_registration?`<div class="ds-item"><strong>Voter Reg:</strong> ${esc(pub.voter_registration)}</div>`:''}${pub.online_presence?.length?`<div class="ds-item"><strong>Online Presence:</strong> ${pub.online_presence.map(o=>esc(o)).join(', ')}</div>`:''}</div>`;
+
+    /* Verified facts / issues (Ultra) */
+    let verifyHtml='';
+    if(p._verified_facts?.length)verifyHtml+=`<div style="margin-top:8px;font-size:.74rem;color:var(--green)"><strong>Verified:</strong> ${p._verified_facts.map(f=>esc(f)).join('; ')}</div>`;
+    if(p._flagged_issues?.length)verifyHtml+=`<div style="margin-top:4px;font-size:.74rem;color:var(--amber)"><strong>Flagged:</strong> ${p._flagged_issues.map(f=>esc(f)).join('; ')}</div>`;
+
+    let altHtml='';
+    if(p.alternate_candidates?.length)altHtml=`<div style="margin-top:8px;font-size:.76rem;color:var(--text-dim);font-style:italic">Also considered: ${p.alternate_candidates.map(a=>esc(a)).join(', ')}</div>`;
+    if(p._search_strategy)altHtml+=`<div style="margin-top:4px;font-size:.72rem;color:var(--purple)">Search strategy: ${esc(p._search_strategy)}</div>`;
+
+    return `<div class="entity-card">
+      <div class="entity-header"><div><div class="entity-name">${esc(p.name)}${modelBadge}</div>${p.role?`<div class="entity-role">${esc(p.role)}</div>`:''}</div><span class="entity-tag tag-person">PERSON</span></div>
+      <div class="confidence-row"><div class="confidence-bar-bg"><div class="confidence-bar conf-${level}" style="width:${conf}%"></div></div><span class="confidence-pct">${conf}%</span></div>
+      ${p.info?`<div class="entity-bio">${esc(p.info)}</div>`:''}
+      ${factsHtml}${sourceHtml}${deepHtml}${evidenceHtml}${verifyHtml}${altHtml}
+    </div>`;
+  }
+
+  function locationCard(l){
+    const conf=Math.max(0,Math.min(100,l.confidence||0));const level=conf>=75?'high':conf>=45?'med':'low';
+    return `<div class="entity-card"><div class="entity-header"><span class="entity-name">${esc(l.name)}</span><span class="entity-tag tag-place">PLACE</span></div><div class="confidence-row"><div class="confidence-bar-bg"><div class="confidence-bar conf-${level}" style="width:${conf}%"></div></div><span class="confidence-pct">${conf}%</span></div><div class="entity-bio">${esc(l.info)}</div></div>`;
+  }
+
+  function esc(s){const d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
+  function showError(m){errorBox.textContent=m;errorBox.classList.add('visible')}
+})();
+</script>
+</body>
+</html>
