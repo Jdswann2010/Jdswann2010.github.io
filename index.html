@@ -165,6 +165,21 @@
   .error-box{display:none;background:rgba(248,113,113,.1);border:1px solid var(--red);border-radius:10px;padding:14px 18px;color:var(--red);font-size:.88rem;margin-bottom:16px}
   .error-box.visible{display:block}
 
+  .name-search-section{margin-top:20px}
+  .name-search-divider{display:flex;align-items:center;gap:16px;margin-bottom:20px}
+  .divider-line{flex:1;height:1px;background:var(--border)}
+  .divider-text{color:var(--text-dim);font-size:.82rem;font-weight:600;text-transform:uppercase;letter-spacing:1.5px}
+  .name-search-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:24px;transition:border-color .3s}
+  .name-search-card:hover{border-color:var(--accent)}
+  .name-search-header{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .name-search-header h3{font-size:1.05rem;font-weight:700}
+  .name-search-desc{color:var(--text-dim);font-size:.85rem;margin-bottom:16px}
+  .name-search-fields{display:flex;flex-direction:column;gap:12px;margin-bottom:16px}
+  .name-field-row label{font-size:.82rem;color:var(--text-dim);display:block;margin-bottom:4px}
+  .name-field-row input{width:100%;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-size:.9rem;outline:none;font-family:inherit;transition:border .2s}
+  .name-field-row input:focus{border-color:var(--accent)}
+  #btnNameSearch{width:100%}
+
   @media(max-width:900px){.preview-section.visible{grid-template-columns:1fr}.container{padding:18px}header{padding:14px 18px;flex-wrap:wrap;gap:10px}.search-cats{margin-left:0;margin-top:6px}}
 </style>
 </head>
@@ -248,6 +263,22 @@
     <input type="file" id="fileInput" accept="image/*">
   </div>
 
+  <div class="name-search-section" id="nameSearchSection">
+    <div class="name-search-divider"><span class="divider-line"></span><span class="divider-text">OR</span><span class="divider-line"></span></div>
+    <div class="name-search-card">
+      <div class="name-search-header">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent)" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <h3>Search by Name</h3>
+      </div>
+      <p class="name-search-desc">Find everything about a person without uploading an image. Works best with Ultra Deep mode.</p>
+      <div class="name-search-fields">
+        <div class="name-field-row"><label for="searchName">Full Name *</label><input type="text" id="searchName" placeholder='e.g. "John Smith" or "Jane Doe-Williams"'></div>
+        <div class="name-field-row"><label for="searchDetails">Additional Details (optional)</label><input type="text" id="searchDetails" placeholder='e.g. age ~40, lives in Austin TX, works at Google, graduated MIT 2005...'></div>
+      </div>
+      <button class="btn btn-primary" id="btnNameSearch"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:6px"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>Search Person</button>
+    </div>
+  </div>
+
   <div class="preview-section" id="previewSection">
     <div class="left-col">
       <div class="image-card">
@@ -291,6 +322,7 @@
     apiKey=$('apiKey'),apiStatus=$('apiStatus'),apiLabel=$('apiLabel'),
     apiBar=$('apiBar'),freeBanner=$('freeBanner'),passSteps=$('passSteps'),
     userContext=$('userContext'),ultraBanner=$('ultraBanner');
+  const searchNameInput=$('searchName'),searchDetailsInput=$('searchDetails'),btnNameSearch=$('btnNameSearch');
 
   const placeholders={openai:'sk-...',gemini:'AIza...',claude:'sk-ant-...'};
   const labels={openai:'OpenAI API Key',gemini:'Gemini API Key',claude:'Claude API Key'};
@@ -361,6 +393,7 @@
       previewImg.src=e.target.result;
       imageMeta.textContent=`${file.name} \u00b7 ${(file.size/1024).toFixed(1)} KB`;
       previewSection.classList.add('visible');
+      resetNameSearchLayout();
       resultsContainer.innerHTML='<div class="no-results">Click "Analyze Image" to start.</div>';
       errorBox.classList.remove('visible');
       lastPass1Data=null;lastIdentified=[];lastResults=null;
@@ -406,6 +439,259 @@ If none found, use empty arrays.`;
       if(data?._fallback)showError('AI was unavailable (low balance / rate limit). Showing offline metadata analysis as fallback. Switch to a different provider or try again later for AI-powered identification.');
     }catch(err){showError(err.message||'Analysis failed.')}
     finally{spinner.classList.remove('active');btnAnalyze.disabled=false}
+  }
+
+  /* ═══ Search by Name (no image) ═══ */
+  btnNameSearch.addEventListener('click',analyzeByName);
+
+  let isNameSearch=false;
+  async function analyzeByName(){
+    const name=searchNameInput.value.trim();
+    if(!name)return showError('Please enter a person\'s name to search.');
+    if(provider!=='puter'&&provider!=='noai'&&!apiKey.value.trim())return showError('Please enter your API key.');
+    if(provider==='noai')return showError('Name search requires an AI provider. Select Puter.js or enter an API key.');
+    errorBox.classList.remove('visible');
+    isNameSearch=true;
+    previewSection.classList.add('visible');
+    document.querySelector('.left-col').style.display='none';
+    previewSection.style.gridTemplateColumns='1fr';
+    spinner.classList.add('active');passSteps.innerHTML='';
+    $('spinnerText').textContent='Starting name search\u2026';
+    resultsContainer.innerHTML='';btnNameSearch.disabled=true;
+    try{
+      let data;
+      if(provider==='puter'){
+        try{
+          if(searchDepth==='ultra')data=await callNameSearchUltra(name);
+          else data=await callNameSearch(name);
+        }catch(aiErr){console.warn('AI failed:',aiErr.message);throw aiErr}
+      }else{data=await callNameSearchSimple(name)}
+      lastResults=data;renderResults(data);
+    }catch(err){showError(err.message||'Name search failed.')}
+    finally{spinner.classList.remove('active');btnNameSearch.disabled=false}
+  }
+
+  /* Reset to image layout when new image is loaded */
+  function resetNameSearchLayout(){
+    if(isNameSearch){isNameSearch=false;document.querySelector('.left-col').style.display='';previewSection.style.gridTemplateColumns=''}
+  }
+
+  /* ═══ Name Search — Quick/Deep ═══ */
+  async function callNameSearch(name){
+    const ctx=getUserContext();const details=searchDetailsInput.value.trim();
+    const contextNote=ctx?`\nUSER-PROVIDED CONTEXT: ${ctx}`:'';
+    const detailNote=details?`\nADDITIONAL DETAILS: ${details}`:'';
+    const isDeep=searchDepth==='deep';const cats=getActiveCats();
+    const totalPasses=isDeep?4:2;
+    const passLabels=['Identifying person from name',isDeep?'Deep searching '+cats.length+' categories':'Researching person',...(isDeep?['Compiling profiles','Generating follow-up questions']:[])];
+    function updateSteps(i){setPass(passLabels.map((l,j)=>({label:l,status:j<i?'done':j===i?'active':''})))}
+
+    updateSteps(0);$('spinnerText').textContent=`Pass 1/${totalPasses}: Identifying "${name}"\u2026`;
+    const p1=await puterChat(`You are an expert at identifying people by name. Identify this person and provide all known information.${contextNote}${detailNote}\n\nPERSON TO IDENTIFY: "${name}"\n\nUse ALL available clues from the name and details. Reply ONLY valid JSON:\n{"people":[{"name":"${name.replace(/"/g,'\\"')}","confidence":75,"role":"...","bio":"4-6 sentences","key_facts":["..."],"evidence":"...","possible_aliases":["..."],"organization":"...","nationality":"..."}]}`,{models:ALL_MODELS,max_tokens:2500});
+    let identified=[];if(p1?.data?.people)identified=p1.data.people;
+    if(!identified.length)identified=[{name,confidence:50,role:'',evidence:'Name search',possible_aliases:[],organization:''}];
+    lastIdentified=identified;
+
+    if(!isDeep){
+      updateSteps(1);$('spinnerText').textContent=`Pass 2/${totalPasses}: Researching\u2026`;
+      const fp=await researchPeople(identified);
+      updateSteps(2);return buildResult(fp,{},'',[]);
+    }
+
+    updateSteps(1);$('spinnerText').textContent=`Pass 2/${totalPasses}: Deep searching ${cats.length} categories\u2026`;
+    const si=buildSearchInstructions(cats);
+    const vl=identified.map(p=>`- "${p.name}" | ${p.role||'N/A'} | Org: ${p.organization||'N/A'} | ${p.confidence}%`).join('\n');
+    const p2=await puterChat(`OSINT research specialist. Research this person exhaustively.${contextNote}${detailNote}\n\nPEOPLE:\n${vl}\n\nCATEGORIES:\n${si}\n\nReply ONLY valid JSON:\n{"people":[{"name":"...","confidence":90,"role":"...","bio":"4-6 sentences","key_facts":["..."],"evidence":"...","social_media":{"twitter":"...","instagram":"...","linkedin":"...","facebook":"...","tiktok":"...","youtube":"..."},"education":[{"school":"...","degree":"...","year":"...","notes":"..."}],"professional":{"current_position":"...","employer":"...","previous_roles":["..."],"industry":"..."},"news_mentions":["..."],"sports_info":{"team":"...","position":"...","stats":"..."},"government_info":{"title":"...","office":"...","party":"..."},"entertainment_info":{"known_for":"...","awards":["..."]},"academic_info":{"field":"...","publications":["..."]},"military_info":{"branch":"...","rank":"..."},"sources_found":[]}]}`,{models:ALL_MODELS,max_tokens:4000});
+    let deepPeople=[];if(p2?.data?.people)deepPeople=p2.data.people;
+
+    updateSteps(2);$('spinnerText').textContent=`Pass 3/${totalPasses}: Compiling profiles\u2026`;
+    if(!deepPeople.length)deepPeople=await researchPeople(identified);
+    else{const gaps=deepPeople.filter(p=>!p.bio||p.bio.length<50).map(p=>p.name);
+      if(gaps.length){const er=await puterChat(`Provide bios for: ${gaps.join(', ')}\nReply ONLY JSON: {"people":[{"name":"...","bio":"...","key_facts":["..."]}]}`,{models:ALL_MODELS,max_tokens:2500});
+        if(er?.data?.people)for(const ep of er.data.people){const m=deepPeople.find(d=>d.name.toLowerCase()===ep.name.toLowerCase());if(m){if(!m.bio||m.bio.length<50)m.bio=ep.bio;if(!m.key_facts?.length)m.key_facts=ep.key_facts}}
+      }}
+    const finalPeople=normalizePeople(deepPeople);
+
+    updateSteps(3);$('spinnerText').textContent=`Pass 4/${totalPasses}: Follow-up questions\u2026`;
+    const questions=await generateQuestions(finalPeople,'','',[]);
+    updateSteps(4);return buildResult(finalPeople,{},`Name search: "${name}"`,questions);
+  }
+
+  /* ═══ Name Search — Ultra Deep (16-pass) ═══ */
+  async function callNameSearchUltra(name){
+    const ctx=getUserContext();const details=searchDetailsInput.value.trim();
+    const contextNote=ctx?`\nUSER-PROVIDED CONTEXT: ${ctx}`:'';
+    const detailNote=details?`\nADDITIONAL DETAILS: ${details}`:'';
+    const cats=ALL_CATS;const T=16;
+
+    const PL=[
+      'Multi-model identification from name (3 models)',
+      'Consensus merge & cross-reference',
+      'Deep search: Social + Professional + Schools',
+      'Deep search: News + Entertainment + Sports',
+      'Deep search: Government + Military + Legal',
+      'Deep search: Tech + Academic + Creative Arts',
+      'Deep search: Business/RE + International + Community',
+      'Deep search: Genealogy/History + Exhaustive Sweep',
+      'Photo & Image hunt',
+      'Resume & CV database search',
+      'Public records & people-finder deep dive',
+      'Cross-validate all findings',
+      'Kitchen sink — final exhaustive sweep',
+      'Confidence calibration & fact-check',
+      'Compile final comprehensive profiles',
+      'Generate follow-up questions'
+    ];
+    function US(i){setPass(PL.map((l,j)=>({label:l,status:j<i?'done':j===i?'active':''})))}
+
+    /* Pass 1: Multi-model identification from name */
+    US(0);$('spinnerText').textContent=`Pass 1/${T}: Multi-model identification of "${name}"\u2026`;
+    const idPrompt=`You are an expert at identifying people by name. Identify "${name.replace(/"/g,'\\"')}" and provide all known information. Search EVERY source: Wikipedia, news, social media, professional databases, public records, government, entertainment, sports, academic, genealogy.${contextNote}${detailNote}\n\nReply ONLY valid JSON:\n{"people":[{"name":"...","confidence":80,"role":"...","bio":"5-7 sentences","key_facts":["..."],"evidence":"...","possible_aliases":["..."],"organization":"...","nationality":"..."}]}`;
+    const idResults=await puterChatAll(idPrompt,{max_tokens:3000});
+
+    let allIds=[];
+    for(const r of idResults){if(r?.data?.people)allIds.push({people:r.data.people,model:r.model})}
+
+    /* Pass 2: Consensus merge */
+    US(1);$('spinnerText').textContent=`Pass 2/${T}: Consensus merge from ${allIds.length} models\u2026`;
+    let identified=[];
+    if(allIds.length>0){
+      const maxP=Math.max(...allIds.map(r=>r.people.length));
+      for(let i=0;i<maxP;i++){
+        const cands=allIds.map(r=>r.people[i]).filter(Boolean);if(!cands.length)continue;
+        const nameVotes={};cands.forEach(c=>{const n=(c.name||'Unknown').toLowerCase();nameVotes[n]=(nameVotes[n]||0)+1});
+        const topName=Object.entries(nameVotes).sort((a,b)=>b[1]-a[1])[0];
+        const winner=cands.find(c=>(c.name||'').toLowerCase()===topName[0])||cands[0];
+        const voteCount=topName[1];const totalVotes=cands.length;
+        const boost=voteCount>1?Math.min(15,voteCount*5):0;
+        const allEvidence=cands.map(c=>c.evidence).filter(Boolean);
+        const allAliases=[...new Set(cands.flatMap(c=>c.possible_aliases||[]))];
+        const modelsAgreed=allIds.filter(r=>(r.people[i]?.name||'').toLowerCase()===topName[0]).map(r=>r.model);
+        identified.push({name:winner.name,confidence:Math.min(99,Math.max(winner.confidence||50,cands.reduce((m,c)=>Math.max(m,c.confidence||0),0))+boost),role:winner.role||cands.find(c=>c.role)?.role||'',bio:winner.bio||cands.find(c=>c.bio)?.bio||'',key_facts:winner.key_facts||cands.find(c=>c.key_facts?.length)?.key_facts||[],evidence:allEvidence.join(' | '),possible_aliases:allAliases,organization:winner.organization||'',nationality:winner.nationality||'',_models_agreed:modelsAgreed,_vote_count:`${voteCount}/${totalVotes}`});
+      }
+    }
+    if(!identified.length)identified=[{name,confidence:50,role:'',evidence:'Name search',possible_aliases:[],organization:'',_models_agreed:[],_vote_count:'0/0'}];
+    lastIdentified=identified;
+
+    const vList=identified.map(p=>`- "${p.name}" | ${p.role||'N/A'} | Org: ${p.organization||'N/A'} | Nationality: ${p.nationality||'N/A'} | ${p.confidence}%`).join('\n');
+
+    /* Pass 3-8: Deep search batches (same as image Ultra passes 5-10) */
+    US(2);$('spinnerText').textContent=`Pass 3/${T}: Searching social, professional, schools\u2026`;
+    const si1=buildSearchInstructions(['social','school','professional']);
+    const nb1=await puterChat(`OSINT specialist. Search EVERY source exhaustively.${contextNote}${detailNote}\n\nPEOPLE:\n${vList}\n\nCATEGORIES:\n${si1}\n\nReply ONLY JSON:\n{"people":[{"name":"...","social_media":{"twitter":"...","instagram":"...","linkedin":"...","facebook":"...","tiktok":"...","youtube":"...","reddit":"...","threads":"...","bluesky":"...","twitch":"...","other":"..."},"education":[{"school":"...","degree":"...","year":"...","notes":"..."}],"professional":{"current_position":"...","employer":"...","previous_roles":["..."],"industry":"...","linkedin_headline":"..."},"sources_found":["social","school","professional"]}]}`,{models:ALL_MODELS,max_tokens:4000});
+    let b1=[];if(nb1?.data?.people)b1=nb1.data.people;
+
+    US(3);$('spinnerText').textContent=`Pass 4/${T}: Searching news, entertainment, sports\u2026`;
+    const si2=buildSearchInstructions(['news','entertainment','sports']);
+    const nb2=await puterChat(`OSINT specialist. Leave no stone unturned.${contextNote}${detailNote}\n\nPEOPLE:\n${vList}\n\nCATEGORIES:\n${si2}\n\nReply ONLY JSON:\n{"people":[{"name":"...","news_mentions":["..."],"entertainment_info":{"known_for":"...","awards":["..."],"filmography":["..."],"discography":["..."]},"sports_info":{"team":"...","position":"...","number":"...","stats":"...","draft":"...","awards":["..."]},"sources_found":["news","entertainment","sports"]}]}`,{models:ALL_MODELS,max_tokens:4000});
+    let b2=[];if(nb2?.data?.people)b2=nb2.data.people;
+
+    US(4);$('spinnerText').textContent=`Pass 5/${T}: Searching government, military, legal\u2026`;
+    const si3=buildSearchInstructions(['government','military','legal']);
+    const nb3=await puterChat(`OSINT specialist. Search EVERY government database, military record, court system.${contextNote}${detailNote}\n\nPEOPLE:\n${vList}\n\nCATEGORIES:\n${si3}\n\nReply ONLY JSON:\n{"people":[{"name":"...","government_info":{"title":"...","office":"...","party":"...","district":"..."},"military_info":{"branch":"...","rank":"...","service_years":"...","unit":"...","decorations":["..."]},"legal_info":{"cases":["..."],"bar_membership":"...","law_firm":"...","judgeship":"..."},"sources_found":["government","military","legal"]}]}`,{models:ALL_MODELS,max_tokens:4000});
+    let b3=[];if(nb3?.data?.people)b3=nb3.data.people;
+
+    US(5);$('spinnerText').textContent=`Pass 6/${T}: Searching tech, academic, creative arts\u2026`;
+    const si4=buildSearchInstructions(['tech','academic','creative']);
+    const nb4=await puterChat(`OSINT specialist. Search every tech platform, academic database, creative directory.${contextNote}${detailNote}\n\nPEOPLE:\n${vList}\n\nCATEGORIES:\n${si4}\n\nReply ONLY JSON:\n{"people":[{"name":"...","tech_info":{"github":"...","stackoverflow":"...","repos":["..."],"languages":["..."],"companies_founded":["..."]},"academic_info":{"field":"...","publications":["..."],"institution":"...","h_index":"...","awards":["..."]},"creative_info":{"medium":"...","galleries":["..."],"exhibitions":["..."],"awards":["..."]},"sources_found":["tech","academic","creative"]}]}`,{models:ALL_MODELS,max_tokens:4000});
+    let b4=[];if(nb4?.data?.people)b4=nb4.data.people;
+
+    US(6);$('spinnerText').textContent=`Pass 7/${T}: Searching business, international, community\u2026`;
+    const si5=buildSearchInstructions(['realestate','international','community']);
+    const nb5=await puterChat(`OSINT specialist. Search every business registry, international database, community source.${contextNote}${detailNote}\n\nPEOPLE:\n${vList}\n\nCATEGORIES:\n${si5}\n\nReply ONLY JSON:\n{"people":[{"name":"...","business_info":{"companies":["..."],"sec_filings":["..."],"property_owned":["..."],"net_worth_est":"..."},"international_info":{"countries":["..."],"international_orgs":["..."],"diplomatic_roles":["..."]},"community_info":{"local_orgs":["..."],"volunteer_work":["..."],"clubs":["..."]},"sources_found":["realestate","international","community"]}]}`,{models:ALL_MODELS,max_tokens:4000});
+    let b5=[];if(nb5?.data?.people)b5=nb5.data.people;
+
+    US(7);$('spinnerText').textContent=`Pass 8/${T}: Searching genealogy, history\u2026`;
+    const si6=buildSearchInstructions(['genealogy']);
+    const nb6=await puterChat(`OSINT specialist. Search every genealogy database, historical archive. Also search: Wikipedia, Wikidata, obituaries, people search engines (Whitepages, Spokeo, BeenVerified, Pipl, ThatsThem, FastPeopleSearch, TruePeopleSearch, Radaris, Intelius), gaming profiles, dating profiles (public), phone directories.${contextNote}${detailNote}\n\nPEOPLE:\n${vList}\n\nCATEGORIES:\n${si6}\n\nReply ONLY JSON:\n{"people":[{"name":"...","genealogy_info":{"birth_date":"...","birth_location":"...","death_date":"...","death_location":"...","birth_records":"...","death_records":"...","obituary":"...","ancestry":"...","ethnicity_heritage":"...","family_tree":{"parents":["..."],"siblings":["..."],"spouse":"...","children":["..."],"grandparents":["..."],"notable_relatives":["..."]},"family_members":["..."],"census_records":["..."],"marriage_records":"...","divorce_records":"...","immigration_records":"...","naturalization_records":"...","ship_manifests":["..."],"military_pension":"...","dna_heritage":"...","lineage_societies":["..."],"church_records":"...","baptism_records":"...","wills_probate":"...","estate_records":"...","land_grants":"...","homestead_records":"...","historical_photos":["..."],"cemetery_records":{"findagrave":"...","billiongraves":"...","burial_location":"...","headstone_inscription":"..."}},"historical_info":{"wikipedia":"...","notable_events":["..."]},"misc_info":{"wikipedia_url":"...","people_search_results":["..."],"obituary_mentions":["..."]},"sources_found":["genealogy"]}]}`,{models:ALL_MODELS,max_tokens:5000});
+    let b6=[];if(nb6?.data?.people)b6=nb6.data.people;
+
+    /* Pass 9: Photo hunt */
+    US(8);$('spinnerText').textContent=`Pass 9/${T}: Photo & image hunt\u2026`;
+    const siP=buildSearchInstructions(['photo']);
+    const nbP=await puterChat(`Photo & image search specialist. Find EVERY photo of each person anywhere online.${contextNote}${detailNote}\n\nPEOPLE:\n${vList}\n\n${siP}\n\nReply ONLY JSON:\n{"people":[{"name":"...","photo_info":{"profile_pictures":{"platforms_with_photos":["..."],"primary_photo_source":"..."},"press_photos":{"agencies":["..."],"red_carpet":["..."]},"professional_headshots":{"company_page":"...","conference_speaker_photos":["..."]},"yearbook_photos":{"schools":["..."]},"event_photos":{"events_photographed_at":["..."]},"video_thumbnails":{"youtube_thumbnails":["..."]},"social_media_photos":{"instagram_photos":"...","tagged_photos":"..."},"total_photo_sources_found":0,"photo_search_summary":"..."},"sources_found":["photo"]}]}`,{models:ALL_MODELS,max_tokens:4000});
+    let bP=[];if(nbP?.data?.people)bP=nbP.data.people;
+
+    /* Merge all batches */
+    const mergedDeep=identified.map((v,i)=>{
+      const findB=(batch,nm,idx)=>batch.find(b=>b.name?.toLowerCase()===nm?.toLowerCase())||batch[idx]||{};
+      const m1=findB(b1,v.name,i),m2=findB(b2,v.name,i),m3=findB(b3,v.name,i),m4=findB(b4,v.name,i),m5=findB(b5,v.name,i),m6=findB(b6,v.name,i),mP=findB(bP,v.name,i);
+      const allSrc=[...new Set([...(m1.sources_found||[]),...(m2.sources_found||[]),...(m3.sources_found||[]),...(m4.sources_found||[]),...(m5.sources_found||[]),...(m6.sources_found||[]),...(mP.sources_found||[])])];
+      return{name:v.name,confidence:v.confidence,role:v.role||'',bio:v.bio||'',key_facts:v.key_facts||[],evidence:v.evidence||'',alternate_candidates:v.possible_aliases||[],nationality:v.nationality||'',organization:v.organization||'',
+        social_media:m1.social_media||{},education:m1.education||[],professional:m1.professional||{},
+        news_mentions:m2.news_mentions||[],entertainment_info:m2.entertainment_info||{},sports_info:m2.sports_info||{},
+        government_info:m3.government_info||{},military_info:m3.military_info||{},legal_info:m3.legal_info||{},
+        tech_info:m4.tech_info||{},academic_info:m4.academic_info||{},creative_info:m4.creative_info||{},
+        business_info:m5.business_info||{},international_info:m5.international_info||{},community_info:m5.community_info||{},
+        genealogy_info:m6.genealogy_info||{},historical_info:m6.historical_info||{},misc_info:m6.misc_info||{},
+        photo_info:mP.photo_info||{},
+        sources_found:allSrc,_models_agreed:v._models_agreed||[],_vote_count:v._vote_count||'',
+        resume_info:{},public_records:{}};
+    });
+
+    /* Pass 10: Resume search */
+    US(9);$('spinnerText').textContent=`Pass 10/${T}: Resume & CV search\u2026`;
+    const resumeList=mergedDeep.map(p=>`- "${p.name}" | ${p.role||'N/A'} | Org: ${p.organization||'N/A'} | Education: ${(p.education||[]).map(e=>e.school).join(', ')||'N/A'} | Professional: ${p.professional?.current_position||'N/A'} at ${p.professional?.employer||'N/A'}`).join('\n');
+    const nResume=await puterChat(`Resume & CV database specialist. Find EVERY resume, CV, and professional profile.${contextNote}${detailNote}\n\nPEOPLE:\n${resumeList}\n\nSearch: LinkedIn, Indeed, Monster, ZipRecruiter, Glassdoor, CareerBuilder, Dice, Doximity, AngelList/Wellfound, Upwork, Fiverr, Toptal, Google cached resumes, personal websites, conference speaker bios, academic CVs.\n\nReply ONLY JSON:\n{"people":[{"name":"...","resume_info":{"headline":"...","work_history":[{"title":"...","company":"...","dates":"...","description":"..."}],"skills":["..."],"certifications":["..."],"languages_spoken":["..."],"career_summary":"...","resume_sources":["..."]},"sources_found":["professional"]}]}`,{models:ALL_MODELS,max_tokens:4500});
+    if(nResume?.data?.people)for(const rp of nResume.data.people){const match=mergedDeep.find(d=>d.name?.toLowerCase()===rp.name?.toLowerCase());if(match){match.resume_info=rp.resume_info||{};if(rp.sources_found?.length)match.sources_found=[...new Set([...match.sources_found,...rp.sources_found])]}}
+
+    /* Pass 11: Public records */
+    US(10);$('spinnerText').textContent=`Pass 11/${T}: Public records deep dive\u2026`;
+    const prList=mergedDeep.map(p=>`- "${p.name}" | ${p.role||'N/A'} | Nationality: ${p.nationality||'N/A'}`).join('\n');
+    const nPublic=await puterChat(`Public records investigator. Search EVERY people-finder database and public records aggregator.${contextNote}${detailNote}\n\nPEOPLE:\n${prList}\n\nSearch: Whitepages, Spokeo, BeenVerified, Intelius, TruePeopleSearch, FastPeopleSearch, Radaris, ThatsThem, PeopleFinders, Social Catfish. Also: voter registration, property records, court records, business filings, professional licenses.\n\nReply ONLY JSON:\n{"people":[{"name":"...","public_records":{"addresses":["..."],"phone_numbers":["..."],"email_addresses":["..."],"age":"...","relatives":["..."],"property_records":["..."],"court_records":["..."],"business_filings":["..."],"licenses":["..."],"online_presence":["..."],"background_summary":"..."},"sources_found":["public_records"]}]}`,{models:ALL_MODELS,max_tokens:4500});
+    if(nPublic?.data?.people)for(const pp of nPublic.data.people){const match=mergedDeep.find(d=>d.name?.toLowerCase()===pp.name?.toLowerCase());if(match){match.public_records=pp.public_records||{};if(pp.sources_found?.length)match.sources_found=[...new Set([...match.sources_found,...pp.sources_found])]}}
+
+    /* Pass 12: Cross-validate */
+    US(11);$('spinnerText').textContent=`Pass 12/${T}: Cross-validating\u2026`;
+    const valSum=mergedDeep.map(p=>{const sc=Object.values(p.social_media||{}).filter(v=>v&&v!=='null'&&v!=='N/A').length;return `"${p.name}" (${p.confidence}%): Role=${p.role}, Social=${sc}, Education=${(p.education||[]).length}, News=${(p.news_mentions||[]).length}, PhotoSources=${p.photo_info?.total_photo_sources_found||0}`}).join('\n');
+    const nVal=await puterChat(`Fact-checker. Verify ALL findings. Flag contradictions, confusions, incorrect info. Cross-check resume vs professional, public records vs known locations, photo sources vs identity.${contextNote}\n\nFINDINGS:\n${valSum}\n\nReply ONLY JSON:\n{"people":[{"name":"...","confidence_adjustment":0,"verified_facts":["..."],"flagged_issues":["..."]}]}`,{models:['claude-sonnet-4-5-20250929','gpt-4o'],max_tokens:2500});
+    if(nVal?.data?.people)for(const check of nVal.data.people){const match=mergedDeep.find(d=>d.name?.toLowerCase()===check.name?.toLowerCase());if(match){match.confidence=Math.max(10,Math.min(99,(match.confidence||50)+(check.confidence_adjustment||0)));if(check.verified_facts?.length)match._verified_facts=check.verified_facts;if(check.flagged_issues?.length)match._flagged_issues=check.flagged_issues}}
+
+    /* Pass 13: Kitchen sink */
+    US(12);$('spinnerText').textContent=`Pass 13/${T}: Kitchen sink sweep\u2026`;
+    const ksList=mergedDeep.map(p=>`"${p.name}" (${p.confidence}%): ${p.role||'?'}`).join('\n');
+    const nKs=await puterChatAll(`FINAL CHECK. Search ANY source not yet checked: personal blogs, podcast appearances, webinars, online courses, book author pages, Cameo, Patreon, GoFundMe, conference attendee lists, award ceremony programs, fan wikis, convention appearances, ANYTHING.${contextNote}${detailNote}\n\n${ksList}\n\nReply ONLY JSON:\n{"people":[{"name":"...","confidence":85,"additional_info":"...","additional_sources":["..."],"bio":"5-7 sentences","key_facts":["..."]}]}`,{max_tokens:4000});
+    for(const kr of nKs){if(!kr?.data?.people)continue;for(const kp of kr.data.people){const match=mergedDeep.find(d=>d.name?.toLowerCase()===kp.name?.toLowerCase());if(match){if((kp.confidence||0)>(match.confidence||0))match.confidence=Math.min(99,kp.confidence);if(kp.bio&&(!match.bio||kp.bio.length>match.bio.length))match.bio=kp.bio;if(kp.key_facts?.length&&(!match.key_facts?.length||kp.key_facts.length>match.key_facts.length))match.key_facts=kp.key_facts;if(kp.additional_sources?.length)match.sources_found=[...new Set([...match.sources_found,...kp.additional_sources])]}}}
+
+    /* Pass 14: Confidence calibration */
+    US(13);$('spinnerText').textContent=`Pass 14/${T}: Confidence calibration\u2026`;
+    const calList=mergedDeep.map(p=>`"${p.name}" (${p.confidence}%): ${p.bio||p.role||'?'}`).join('\n');
+    const nCal=await puterChat(`Final confidence calibration. Assess if confidence scores are accurate.${contextNote}\n\n${calList}\n\nReply ONLY JSON:\n{"people":[{"name":"...","final_confidence":85,"confidence_reasoning":"...","verified_facts":["..."],"remaining_uncertainties":["..."]}]}`,{models:['claude-sonnet-4-5-20250929','gpt-4o'],max_tokens:2000});
+    if(nCal?.data?.people)for(const fc of nCal.data.people){const match=mergedDeep.find(d=>d.name?.toLowerCase()===fc.name?.toLowerCase());if(match){if(fc.final_confidence!=null)match.confidence=Math.max(10,Math.min(99,fc.final_confidence));if(fc.verified_facts?.length)match._verified_facts=[...new Set([...(match._verified_facts||[]),...fc.verified_facts])];if(fc.remaining_uncertainties?.length)match._flagged_issues=[...new Set([...(match._flagged_issues||[]),...fc.remaining_uncertainties])]}}
+
+    /* Pass 15: Compile */
+    US(14);$('spinnerText').textContent=`Pass 15/${T}: Compiling profiles\u2026`;
+    const needBio=mergedDeep.filter(p=>!p.bio||p.bio.length<50);
+    if(needBio.length){const namesList=needBio.map(p=>`"${p.name}" (${p.role||'unknown'})`).join(', ');
+      const bioR=await puterChat(`Write detailed 7-10 sentence bios for: ${namesList}\n\nReply ONLY JSON:\n{"people":[{"name":"...","bio":"...","key_facts":["..."]}]}`,{models:ALL_MODELS,max_tokens:4000});
+      if(bioR?.data?.people)for(const bp of bioR.data.people){const match=mergedDeep.find(d=>d.name?.toLowerCase()===bp.name?.toLowerCase());if(match){if(!match.bio||match.bio.length<50)match.bio=bp.bio;if(!match.key_facts?.length)match.key_facts=bp.key_facts}}}
+    const finalPeople=normalizePeople(mergedDeep);
+
+    /* Pass 16: Questions */
+    US(15);$('spinnerText').textContent=`Pass 16/${T}: Follow-up questions\u2026`;
+    const questions=await generateQuestions(finalPeople,'','',[]);
+    US(16);return buildResult(finalPeople,{},`Ultra Deep name search: "${name}"`,questions);
+  }
+
+  /* ═══ Name Search — Simple (non-Puter providers) ═══ */
+  async function callNameSearchSimple(name){
+    const details=searchDetailsInput.value.trim();const key=apiKey.value.trim();
+    const ctx=getUserContext();
+    const prompt=`You are an expert researcher. Find ALL information about: "${name}"${details?'. Details: '+details:''}${ctx?'. Context: '+ctx:''}\nReply ONLY valid JSON:\n{"people":[{"name":"...","confidence":85,"role":"...","info":"detailed bio","key_facts":["..."],"evidence":"...","social_media":{},"education":[],"professional":{},"news_mentions":[],"sources_found":[]}],"locations":[],"scene_summary":"Name search results for ${name.replace(/"/g,'\\"')}"}`;
+    setPass([{label:'Searching for "'+name+'"',status:'active'}]);$('spinnerText').textContent='Searching\u2026';
+    if(provider==='openai'){
+      const res=await fetch('https://api.openai.com/v1/chat/completions',{method:'POST',headers:{'Content-Type':'application/json',Authorization:`Bearer ${key}`},body:JSON.stringify({model:'gpt-4o',max_tokens:3000,messages:[{role:'system',content:prompt}]})});
+      if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`OpenAI error ${res.status}`)}
+      const data=parseJSON((await res.json()).choices[0].message.content);data.people=normalizePeople(data.people||[]);return data;
+    }else if(provider==='gemini'){
+      const res=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${key}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({system_instruction:{parts:[{text:prompt}]},contents:[{parts:[{text:`Find all info about ${name}`}]}],generationConfig:{temperature:0.2,maxOutputTokens:3000}})});
+      if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`Gemini error ${res.status}`)}
+      const data=parseJSON((await res.json()).candidates[0].content.parts[0].text);data.people=normalizePeople(data.people||[]);return data;
+    }else{
+      const res=await fetch('https://api.anthropic.com/v1/messages',{method:'POST',headers:{'Content-Type':'application/json','x-api-key':key,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'},body:JSON.stringify({model:'claude-sonnet-4-5-20250929',max_tokens:3000,system:prompt,messages:[{role:'user',content:`Find all info about ${name}`}]})});
+      if(!res.ok){const e=await res.json().catch(()=>({}));throw new Error(e.error?.message||`Claude error ${res.status}`)}
+      const data=parseJSON((await res.json()).content[0].text);data.people=normalizePeople(data.people||[]);return data;
+    }
   }
 
   /* ═══════════════════════════════════════════════════════
@@ -976,7 +1262,7 @@ JSON: {"people":[{"appearance":"...","facial_features":"detailed face descriptio
     /* ── PASS 10: Deep search batch 6 — Genealogy + History + Final sweep ── */
     US(9);$('spinnerText').textContent=`Pass 10/${T}: Searching genealogy, history, exhaustive sweep\u2026`;
     const si6=buildSearchInstructions(['genealogy']);
-    const p10b=await puterChat(`OSINT specialist. Search every genealogy database, historical archive, and any remaining source. Also search: Wikipedia, Wikidata, obituaries, wedding announcements, birth announcements, yearbook archives, phone directories, people search engines (Whitepages, Spokeo, BeenVerified, Pipl, ThatsThem, FastPeopleSearch, TruePeopleSearch, Radaris, Intelius), dating profiles (where public), gaming profiles (Steam, Xbox, PSN, Epic Games, Riot Games), food/culinary (Yelp, restaurant ownership, cookbook authors, food blogs, James Beard, Michelin), fashion (models.com, agency rosters, Fashion Week credits), aviation (FAA airmen, pilot records), maritime (USCG, ship manifests), religious organizations (church directories, clergy lists, denominational records).${contextNote}\n\nPEOPLE:\n${vList}\nScene: ${summary}\n\nCATEGORIES:\n${si6}\n\nALSO SEARCH: People search engines, Wikipedia/Wikidata, obituaries, wedding/birth announcements, gaming profiles, dating profiles (public), phone directories, yearbooks, EVERY remaining source.\n\nReply ONLY JSON:\n{"people":[{"name":"...","genealogy_info":{"birth_records":"...","family_members":["..."],"ancestry":"...","immigration_records":"...","census_records":["..."]},"historical_info":{"wikipedia":"...","notable_events":["..."],"archival_records":["..."]},"misc_info":{"people_search_results":["..."],"gaming_profiles":["..."],"wikipedia_url":"...","phone_directory":"...","obituary_mentions":["..."],"wedding_announcements":["..."]},"sources_found":["genealogy"]}]}`,{models:ALL_MODELS,max_tokens:4000});
+    const p10b=await puterChat(`OSINT specialist. Search every genealogy database, historical archive, and any remaining source. Also search: Wikipedia, Wikidata, obituaries, wedding announcements, birth announcements, yearbook archives, phone directories, people search engines (Whitepages, Spokeo, BeenVerified, Pipl, ThatsThem, FastPeopleSearch, TruePeopleSearch, Radaris, Intelius), dating profiles (where public), gaming profiles (Steam, Xbox, PSN, Epic Games, Riot Games), food/culinary (Yelp, restaurant ownership, cookbook authors, food blogs, James Beard, Michelin), fashion (models.com, agency rosters, Fashion Week credits), aviation (FAA airmen, pilot records), maritime (USCG, ship manifests), religious organizations (church directories, clergy lists, denominational records).${contextNote}\n\nPEOPLE:\n${vList}\nScene: ${summary}\n\nCATEGORIES:\n${si6}\n\nALSO SEARCH: People search engines, Wikipedia/Wikidata, obituaries, wedding/birth announcements, gaming profiles, dating profiles (public), phone directories, yearbooks, EVERY remaining source.\n\nReply ONLY JSON:\n{"people":[{"name":"...","genealogy_info":{"birth_date":"...","birth_location":"...","death_date":"...","death_location":"...","birth_records":"...","death_records":"...","obituary":"...","ancestry":"...","ethnicity_heritage":"...","family_tree":{"parents":["..."],"siblings":["..."],"spouse":"...","children":["..."],"grandparents":["..."],"notable_relatives":["..."]},"family_members":["..."],"census_records":["..."],"marriage_records":"...","divorce_records":"...","immigration_records":"...","naturalization_records":"...","ship_manifests":["..."],"military_pension":"...","dna_heritage":"...","dna_matching":"...","lineage_societies":["..."],"church_records":"...","baptism_records":"...","wills_probate":"...","estate_records":"...","land_grants":"...","homestead_records":"...","slave_schedules":"...","freedmen_records":"...","historical_photos":["..."],"cemetery_records":{"findagrave":"...","billiongraves":"...","burial_location":"...","headstone_inscription":"..."}},"historical_info":{"wikipedia":"...","notable_events":["..."],"archival_records":["..."]},"misc_info":{"people_search_results":["..."],"gaming_profiles":["..."],"wikipedia_url":"...","phone_directory":"...","obituary_mentions":["..."],"wedding_announcements":["..."]},"sources_found":["genealogy"]}]}`,{models:ALL_MODELS,max_tokens:5000});
     let batch6=[];if(p10b?.data?.people)batch6=p10b.data.people;
 
     /* ── PASS 11: Photo & Image hunt — every photo source on the internet ── */
@@ -1526,9 +1812,59 @@ For anyone below 80% confidence, try EVERYTHING. Reply ONLY JSON:\n{"people":[{"
     const comm=p.community_info||{};
     if(comm.local_orgs?.length||comm.volunteer_work?.length||comm.community_awards?.length||comm.clubs?.length)deepHtml+=`<div class="deep-section"><div class="ds-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--green)" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75"/></svg> Community/Local</div>${comm.local_orgs?.length?`<div class="ds-item"><strong>Organizations:</strong> ${comm.local_orgs.map(o=>esc(o)).join(', ')}</div>`:''}${comm.volunteer_work?.length?`<div class="ds-item"><strong>Volunteer:</strong> ${comm.volunteer_work.map(v=>esc(v)).join(', ')}</div>`:''}${comm.clubs?.length?`<div class="ds-item"><strong>Clubs:</strong> ${comm.clubs.map(c=>esc(c)).join(', ')}</div>`:''}${comm.community_awards?.length?`<div class="ds-item"><strong>Awards:</strong> ${comm.community_awards.map(a=>esc(a)).join(', ')}</div>`:''}${comm.church_membership?`<div class="ds-item"><strong>Church:</strong> ${esc(comm.church_membership)}</div>`:''}</div>`;
 
-    /* Genealogy/History */
+    /* Genealogy/History — Expanded */
     const gen=p.genealogy_info||{};const hist=p.historical_info||{};const misc=p.misc_info||{};
-    if(gen.family_members?.length||gen.ancestry||hist.wikipedia||hist.notable_events?.length||misc.wikipedia_url)deepHtml+=`<div class="deep-section"><div class="ds-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2"><path d="M12 8V4H8"/><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M2 12h20"/></svg> Genealogy/History</div>${gen.ancestry?`<div class="ds-item"><strong>Ancestry:</strong> ${esc(gen.ancestry)}</div>`:''}${gen.family_members?.length?`<div class="ds-item"><strong>Family:</strong> ${gen.family_members.map(f=>esc(f)).join(', ')}</div>`:''}${gen.birth_records?`<div class="ds-item"><strong>Birth:</strong> ${esc(gen.birth_records)}</div>`:''}${gen.immigration_records?`<div class="ds-item"><strong>Immigration:</strong> ${esc(gen.immigration_records)}</div>`:''}${hist.wikipedia?`<div class="ds-item"><strong>Wikipedia:</strong> ${esc(hist.wikipedia)}</div>`:''}${hist.notable_events?.length?`<div class="ds-item"><strong>Notable Events:</strong> ${hist.notable_events.map(e=>esc(e)).join('; ')}</div>`:''}${misc.wikipedia_url?`<div class="ds-item"><strong>Wiki URL:</strong> ${esc(misc.wikipedia_url)}</div>`:''}</div>`;
+    const ft=gen.family_tree||{};const cem=gen.cemetery_records||{};
+    const genHasData=gen.ancestry||gen.ethnicity_heritage||gen.birth_date||gen.birth_location||gen.death_date||gen.death_location||gen.birth_records||gen.death_records||gen.obituary||gen.family_members?.length||ft.parents?.length||ft.siblings?.length||ft.spouse||ft.children?.length||ft.grandparents?.length||ft.notable_relatives?.length||gen.census_records?.length||gen.marriage_records||gen.divorce_records||gen.immigration_records||gen.naturalization_records||gen.ship_manifests?.length||gen.military_pension||gen.dna_heritage||gen.dna_matching||gen.lineage_societies?.length||gen.church_records||gen.baptism_records||gen.wills_probate||gen.estate_records||gen.land_grants||gen.homestead_records||gen.slave_schedules||gen.freedmen_records||gen.historical_photos?.length||cem.findagrave||cem.billiongraves||cem.burial_location||hist.wikipedia||hist.notable_events?.length||hist.archival_records?.length||misc.wikipedia_url;
+    if(genHasData){
+      deepHtml+=`<div class="deep-section"><div class="ds-title"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--purple)" stroke-width="2"><path d="M12 8V4H8"/><rect x="2" y="2" width="20" height="20" rx="5"/><path d="M2 12h20"/></svg> Genealogy & Family History</div>`;
+      if(gen.birth_date||gen.birth_location||gen.birth_records)deepHtml+=`<div class="ds-item"><strong>Birth:</strong> ${esc(gen.birth_date||'')}${gen.birth_location?' in '+esc(gen.birth_location):''}${gen.birth_records?' \u2014 '+esc(gen.birth_records):''}</div>`;
+      if(gen.death_date||gen.death_location||gen.death_records)deepHtml+=`<div class="ds-item"><strong>Death:</strong> ${esc(gen.death_date||'')}${gen.death_location?' in '+esc(gen.death_location):''}${gen.death_records?' \u2014 '+esc(gen.death_records):''}</div>`;
+      if(gen.obituary)deepHtml+=`<div class="ds-item"><strong>Obituary:</strong> ${esc(gen.obituary)}</div>`;
+      if(gen.ancestry)deepHtml+=`<div class="ds-item"><strong>Ancestry:</strong> ${esc(gen.ancestry)}</div>`;
+      if(gen.ethnicity_heritage)deepHtml+=`<div class="ds-item"><strong>Ethnicity/Heritage:</strong> ${esc(gen.ethnicity_heritage)}</div>`;
+      if(gen.dna_heritage)deepHtml+=`<div class="ds-item"><strong>DNA Heritage:</strong> ${esc(gen.dna_heritage)}</div>`;
+      if(gen.dna_matching)deepHtml+=`<div class="ds-item"><strong>DNA Matching:</strong> ${esc(gen.dna_matching)}</div>`;
+      if(ft.parents?.length||ft.siblings?.length||ft.spouse||ft.children?.length||ft.grandparents?.length||ft.notable_relatives?.length){
+        deepHtml+=`<div class="ds-item" style="margin-top:4px"><strong style="color:var(--purple)">Family Tree:</strong></div>`;
+        if(ft.grandparents?.length)deepHtml+=`<div class="ds-item" style="padding-left:12px"><strong>Grandparents:</strong> ${ft.grandparents.map(g=>esc(g)).join(', ')}</div>`;
+        if(ft.parents?.length)deepHtml+=`<div class="ds-item" style="padding-left:12px"><strong>Parents:</strong> ${ft.parents.map(x=>esc(x)).join(', ')}</div>`;
+        if(ft.siblings?.length)deepHtml+=`<div class="ds-item" style="padding-left:12px"><strong>Siblings:</strong> ${ft.siblings.map(s=>esc(s)).join(', ')}</div>`;
+        if(ft.spouse)deepHtml+=`<div class="ds-item" style="padding-left:12px"><strong>Spouse:</strong> ${esc(ft.spouse)}</div>`;
+        if(ft.children?.length)deepHtml+=`<div class="ds-item" style="padding-left:12px"><strong>Children:</strong> ${ft.children.map(c=>esc(c)).join(', ')}</div>`;
+        if(ft.notable_relatives?.length)deepHtml+=`<div class="ds-item" style="padding-left:12px"><strong>Notable Relatives:</strong> ${ft.notable_relatives.map(r=>esc(r)).join(', ')}</div>`;
+      }
+      if(gen.family_members?.length&&!ft.parents?.length)deepHtml+=`<div class="ds-item"><strong>Family:</strong> ${gen.family_members.map(f=>esc(f)).join(', ')}</div>`;
+      if(gen.marriage_records)deepHtml+=`<div class="ds-item"><strong>Marriage:</strong> ${esc(gen.marriage_records)}</div>`;
+      if(gen.divorce_records)deepHtml+=`<div class="ds-item"><strong>Divorce:</strong> ${esc(gen.divorce_records)}</div>`;
+      if(gen.census_records?.length)deepHtml+=`<div class="ds-item"><strong>Census Records:</strong> ${gen.census_records.map(c=>esc(c)).join('; ')}</div>`;
+      if(gen.immigration_records)deepHtml+=`<div class="ds-item"><strong>Immigration:</strong> ${esc(gen.immigration_records)}</div>`;
+      if(gen.naturalization_records)deepHtml+=`<div class="ds-item"><strong>Naturalization:</strong> ${esc(gen.naturalization_records)}</div>`;
+      if(gen.ship_manifests?.length)deepHtml+=`<div class="ds-item"><strong>Ship Manifests:</strong> ${gen.ship_manifests.map(s=>esc(s)).join('; ')}</div>`;
+      if(gen.military_pension)deepHtml+=`<div class="ds-item"><strong>Military Pension:</strong> ${esc(gen.military_pension)}</div>`;
+      if(gen.lineage_societies?.length)deepHtml+=`<div class="ds-item"><strong>Lineage Societies:</strong> ${gen.lineage_societies.map(l=>esc(l)).join(', ')}</div>`;
+      if(gen.church_records)deepHtml+=`<div class="ds-item"><strong>Church Records:</strong> ${esc(gen.church_records)}</div>`;
+      if(gen.baptism_records)deepHtml+=`<div class="ds-item"><strong>Baptism:</strong> ${esc(gen.baptism_records)}</div>`;
+      if(gen.wills_probate)deepHtml+=`<div class="ds-item"><strong>Wills/Probate:</strong> ${esc(gen.wills_probate)}</div>`;
+      if(gen.estate_records)deepHtml+=`<div class="ds-item"><strong>Estate Records:</strong> ${esc(gen.estate_records)}</div>`;
+      if(gen.land_grants)deepHtml+=`<div class="ds-item"><strong>Land Grants:</strong> ${esc(gen.land_grants)}</div>`;
+      if(gen.homestead_records)deepHtml+=`<div class="ds-item"><strong>Homestead Records:</strong> ${esc(gen.homestead_records)}</div>`;
+      if(gen.slave_schedules)deepHtml+=`<div class="ds-item"><strong>Slave Schedules:</strong> ${esc(gen.slave_schedules)}</div>`;
+      if(gen.freedmen_records)deepHtml+=`<div class="ds-item"><strong>Freedmen Records:</strong> ${esc(gen.freedmen_records)}</div>`;
+      if(cem.findagrave||cem.billiongraves||cem.burial_location||cem.headstone_inscription){
+        deepHtml+=`<div class="ds-item" style="margin-top:4px"><strong style="color:var(--purple)">Cemetery/Grave Records:</strong></div>`;
+        if(cem.burial_location)deepHtml+=`<div class="ds-item" style="padding-left:12px"><strong>Burial:</strong> ${esc(cem.burial_location)}</div>`;
+        if(cem.headstone_inscription)deepHtml+=`<div class="ds-item" style="padding-left:12px"><strong>Headstone:</strong> ${esc(cem.headstone_inscription)}</div>`;
+        if(cem.findagrave)deepHtml+=`<div class="ds-item" style="padding-left:12px"><strong>FindAGrave:</strong> ${esc(cem.findagrave)}</div>`;
+        if(cem.billiongraves)deepHtml+=`<div class="ds-item" style="padding-left:12px"><strong>BillionGraves:</strong> ${esc(cem.billiongraves)}</div>`;
+      }
+      if(gen.historical_photos?.length)deepHtml+=`<div class="ds-item"><strong>Historical Photos:</strong> ${gen.historical_photos.map(hp=>esc(hp)).join('; ')}</div>`;
+      if(hist.wikipedia)deepHtml+=`<div class="ds-item"><strong>Wikipedia:</strong> ${esc(hist.wikipedia)}</div>`;
+      if(hist.notable_events?.length)deepHtml+=`<div class="ds-item"><strong>Notable Events:</strong> ${hist.notable_events.map(e=>esc(e)).join('; ')}</div>`;
+      if(hist.archival_records?.length)deepHtml+=`<div class="ds-item"><strong>Archival Records:</strong> ${hist.archival_records.map(a=>esc(a)).join('; ')}</div>`;
+      if(misc.wikipedia_url)deepHtml+=`<div class="ds-item"><strong>Wiki URL:</strong> <a href="${esc(misc.wikipedia_url)}" target="_blank" style="color:var(--cyan)">${esc(misc.wikipedia_url)}</a></div>`;
+      deepHtml+=`</div>`;
+    }
 
     /* Photo / Image Sources */
     const pht=p.photo_info||{};
